@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 
 
@@ -8,15 +10,26 @@ P_MAX_POBLACION = 1_000_000   # P_max: población máxima que puede tener una pr
 # --- constantes del subsistema Economía ---
 TASA_INTERES_DEUDA = 0.05     # τ_interes: %/turno sobre la deuda acumulada (parámetro de calibración)
 FACTOR_PRESTAMO = 1.10        # recargo del 10% aplicado a la deuda cuando se emite un préstamo (Sección 4.4)
-COEF_ADMINISTRATIVO = 0.591   # 59.1% de los impuestos totales recibidos (Ecuación 1.1)
+COEF_ADMINISTRATIVO = 0.591   # 59.1% de los impuestos totales recibidos
 
-# Ecuación 1.3: Actividad Comercial. AC_base se calcula como población * coeficiente base,
+# Actividad Comercial. AC_base se calcula como población * coeficiente base,
 # modulado por multiplicadores categóricos de suelo/terreno/clima (por ahora solo "Tierra",
 # "Plano" y "Templado" existen en el mapa, se deja el diccionario listo para más categorías).
 AC_BASE_COEF = 0.05
 FACTOR_SUELO = {"Tierra": 1.0}
 FACTOR_TERRENO = {"Plano": 1.0}
 FACTOR_CLIMA = {"Templado": 1.0}
+
+# --- constantes del subsistema Población y Felicidad (Parte 3) ---
+FEL_UMBRAL = 50.0                     # Fel_umbral: umbral de felicidad para rebelión y bloqueo 
+K3_RECUPERACION = 0.05                # k3: tasa de recuperación natural hacia 100 cuando no hay saqueo 
+K4_REBELION = 0.02                    # k4: factor de probabilidad de rebelión
+PENALIDAD_IMPUESTOS_FELICIDAD = 0.1   # cada punto % de tasa combinada resta esta fracción de felicidad (calibración)
+SAQUEO_PENALIDAD_FELICIDAD = 20.0     # reducción de felicidad por saqueo activo en la provincia 
+DECRETO_F_BONO_FELICIDAD = 15.0       # Δ_decretos: bono de felicidad del decreto de fertilidad (Decreto_f)
+DECRETO_D_BONO_CRECIMIENTO = 0.01     # bono extra de crecimiento poblacional del decreto de repartición de oro (Decreto_d)
+TASA_CRECIMIENTO_POBLACION = 0.01     # tasa base de crecimiento poblacional por turno (calibración, modelo logístico)
+PORCENTAJE_PERDIDA_POBLACION_REBELION = 0.10  # la rebelión reduce la población de la provincia en este porcentaje (modelado)
 
 
 # CLASE IMPERIO
@@ -91,6 +104,9 @@ class Provincia:
         self.precio_venta = 0
         self.comprador_v = None
 
+        self.rebelion = False                  # Variable de estado (E): True si la provincia se rebeló este turno (Evento E20)
+        self.bloqueada_baja_felicidad = False  # Variable de estado (E): True bloquea reclutar/construir (Sección 4.2)
+
     def __repr__(self):
         dueño_nombre = self.dueño.nombre if self.dueño else "Sin dueño"
         return f"Provincia({self.id:02d}, dueño={dueño_nombre})"
@@ -151,9 +167,9 @@ def asignar_provincias_iniciales(mapa, imperios):
     Reparte el mapa entre los imperios de prueba dividiéndolo por columnas
     (imperio 0 se queda con la mitad izquierda, imperio 1 con la mitad derecha).
     Además, asigna a cada imperio la primera provincia recibida como la
-    ubicación inicial de su rey (mecánica de Colapso de Corona, Sección 4.5).
+    ubicación inicial de su rey.
     Es una asignación provisional solo para poder probar el subsistema Economía
-    en la Parte 2; el reparto real de inicio de partida se definirá más adelante.
+    en la Parte 2; el reparto real de inicio de partida lo vemos más adelante lahian.
     """
     columnas = len(mapa[0])
     mitad = columnas // 2
@@ -227,8 +243,8 @@ def procesar_cierre_economico(imperio, turno):
     """
     Aplica la Ecuación 1.1 completa para un imperio en el turno indicado,
     siguiendo el orden: actividad comercial -> recaudación -> gastos ->
-    actualización del tesoro -> condición de préstamo por deuda (Sección 4.4).
-    Devuelve un diccionario con el desglose, útil para mostrar y verificar.
+    actualización del tesoro -> condición de préstamo por deuda y
+    devuelve un diccionario con el desglose, útil para mostrar y verificar.
     """
     mes = obtener_mes(turno)
 
@@ -300,9 +316,131 @@ def mostrar_resumen_economico(imperio, resumen):
           f"gobierno={resumen['costo_gobierno']:.2f}, "
           f"administrativo={resumen['costo_administrativo']:.2f})")
     if resumen["prestamo_emitido"] > 0:
-        print(f"    ⚠ Tesoro negativo: préstamo automático emitido por "
-              f"{resumen['prestamo_emitido']:.2f} oro (Sección 4.4)")
+        print(f"    [!] Tesoro negativo: prestamo automatico emitido por "
+              f"{resumen['prestamo_emitido']:.2f} oro (Seccion 4.4)")
     print(f"    -> Tesoro resultante: {imperio.tesoro:.2f} | Deuda: {imperio.deuda:.2f}")
+
+
+
+# PARTE 3: SUBSISTEMA POBLACIÓN Y FELICIDAD
+
+def actualizar_poblacion(provincia):
+    """Crecimiento poblacional con modelo logístico modulado por la
+    felicidad del turno anterior:
+        ΔP_i(t) = TASA_CRECIMIENTO · (Fel_i(t)/100) · P_i(t) · (1 − P_i(t)/P_MAX)
+    El decreto de repartición de oro (Decreto_d) suma un bono de crecimiento.
+    El resultado respeta el tope P_MAX_POBLACION."""
+    factor_felicidad = provincia.felicidad / 100.0
+    tasa = TASA_CRECIMIENTO_POBLACION * factor_felicidad
+    if provincia.decreto_d:
+        tasa += DECRETO_D_BONO_CRECIMIENTO
+    delta_p = tasa * provincia.poblacion * (1.0 - provincia.poblacion / P_MAX_POBLACION)
+    provincia.poblacion = min(P_MAX_POBLACION, provincia.poblacion + delta_p)
+    return provincia.poblacion
+
+
+def procesar_crecimiento_poblacional(imperio):
+    """hace crecer la población de todas las provincias del
+    imperio ANTES de la recaudación, de modo que la economía del mismo turno ya
+    opera sobre la base imponible actualizada."""
+    for provincia in imperio.provincias:
+        actualizar_poblacion(provincia)
+
+
+def poblacion_total(imperio):
+    """Suma la población de todas las provincias del imperio (para reportes)."""
+    return sum(p.poblacion for p in imperio.provincias)
+
+
+def actualizar_felicidad(provincia, imperio):
+    """La felicidad del turno siguiente se calcula como:
+        Fel_i(t+1) = clip( Fel_i(t)
+            + Δ_decretos_i(t)                       # bono del decreto de fertilidad (Decreto_f)
+            − penalidad_fiscal(t)                   # los impuestos descontentan a la población
+            − penalidad_saqueo(t)                   # el saqueo (Saq_i(t)) golpea la moral
+            + k3 · (100 − Fel_i(t)) · 𝟙[sin_saqueo] # recuperación natural hacia el máximo
+            , 0, 100 )
+   """
+    fel = provincia.felicidad
+
+    delta_decretos = DECRETO_F_BONO_FELICIDAD if provincia.decreto_f else 0.0
+
+    penalidad_fiscal = PENALIDAD_IMPUESTOS_FELICIDAD * (
+        imperio.tasa_impuesto + imperio.tasa_impuesto_comercio
+    )
+
+    penalidad_saqueo = SAQUEO_PENALIDAD_FELICIDAD if provincia.saqueo else 0.0
+
+    recuperacion = 0.0
+    if not provincia.saqueo:
+        recuperacion = K3_RECUPERACION * (100.0 - fel)
+
+    nueva_fel = fel + delta_decretos - penalidad_fiscal - penalidad_saqueo + recuperacion
+    provincia.felicidad = min(100.0, max(0.0, nueva_fel))
+    return provincia.felicidad
+
+
+def evaluar_rebelion(provincia):
+    """Sección 4.1: si Fel_i(t) < Fel_umbral se calcula
+        P_rebelion = min(1, k4 · (Fel_umbral − Fel_i(t))).
+    Se genera u ~ U(0,1); si u <= P_rebelion estalla la rebelión (Evento E20).
+    Devuelve True si la provincia se rebela este turno."""
+    if provincia.felicidad >= FEL_UMBRAL:
+        return False
+    p_rebelion = min(1.0, K4_REBELION * (FEL_UMBRAL - provincia.felicidad))
+    return random.random() <= p_rebelion
+
+
+def aplicar_rebelion(provincia):
+    """Consecuencias modeladas de la rebelión (Evento E20): la provincia pierde un
+    porcentaje de su población, su felicidad colapsa a 0 y queda marcada como
+    rebelada (lo que activa el bloqueo de la Sección 4.2)."""
+    provincia.poblacion = int(provincia.poblacion * (1.0 - PORCENTAJE_PERDIDA_POBLACION_REBELION))
+    provincia.felicidad = 0.0
+    provincia.rebelion = True
+
+
+def actualizar_bloqueo_reclutamiento(provincia):
+    """Sección 4.2: si Fel_i(t) < 50% la provincia queda bloqueada para reclutar
+    tropas y construir estructuras."""
+    provincia.bloqueada_baja_felicidad = provincia.felicidad < FEL_UMBRAL
+    return provincia.bloqueada_baja_felicidad
+
+
+def procesar_cierre_felicidad(imperio):
+    resumenes = []
+    for provincia in imperio.provincias:
+        provincia.rebelion = False
+        felicidad_anterior = provincia.felicidad
+
+        actualizar_felicidad(provincia, imperio)
+
+        se_rebelo = evaluar_rebelion(provincia)
+        if se_rebelo:
+            aplicar_rebelion(provincia)
+
+        bloqueada = actualizar_bloqueo_reclutamiento(provincia)
+
+        resumenes.append({
+            "provincia": provincia,
+            "felicidad_anterior": felicidad_anterior,
+            "rebelion": se_rebelo,
+            "bloqueada": bloqueada,
+        })
+    return resumenes
+
+
+def mostrar_resumen_felicidad(imperio, resumenes):
+    """Imprime el desglose de felicidad, rebelión y bloqueo por provincia (para pruebas)."""
+    print(f"  [{imperio.nombre}] Felicidad:")
+    for r in resumenes:
+        p = r["provincia"]
+        estado = f"Fel {r['felicidad_anterior']:.1f} -> {p.felicidad:.1f}"
+        if r["rebelion"]:
+            estado += " | [REBELION E20]"
+        if r["bloqueada"]:
+            estado += " | bloqueada reclutar/construir (4.2)"
+        print(f"    P{p.id:02d} | {estado}")
 
 
 def main():
@@ -340,16 +478,64 @@ def main():
         # Aquí puedes agregar la lógica de la partida, como movimientos de jugadores, actualizaciones de estado, etc.
         #
 
-        respuesta = input("Presiona ENTER para avanzar (o escribe 'salir' para terminar): ")
-        if respuesta.strip().lower() == "salir":
+        respuesta = input("Presiona ENTER para avanzar | 'salir' | 'fel <id> <0-100>' | 'estado': ")
+        respuesta = respuesta.strip().lower()
+
+        if respuesta == "salir":
             print("Terminando juego...")
             break
+        elif respuesta.startswith("fel "):
+            # Comando para forzar la felicidad de una provincia y probar que funcione. 
+            # para poder probar el disparo de rebelión (4.1) y el bloqueo (4.2).
+            partes = respuesta.split()
+            try:
+                id_prov = int(partes[1])
+                valor = float(partes[2])
+                encontrada = False
+                for fila in mapa:
+                    for provincia in fila:
+                        if provincia.id == id_prov:
+                            provincia.felicidad = min(100.0, max(0.0, valor))
+                            print(f"  Felicidad de la provincia {id_prov:02d} forzada a {provincia.felicidad:.1f}")
+                            encontrada = True
+                if not encontrada:
+                    print(f"  No existe la provincia {id_prov:02d}")
+            except (ValueError, IndexError):
+                print("  Uso: fel <id_provincia> <felicidad_0_100>")
+            continue
+        elif respuesta == "estado":
+            for fila in mapa:
+                for provincia in fila:
+                    dueño = provincia.dueño.nombre if provincia.dueño else "libre"
+                    print(f"  P{provincia.id:02d} ({dueño}): pob={provincia.poblacion:,.0f} "
+                          f"fel={provincia.felicidad:.1f} reb={provincia.rebelion} "
+                          f"bloq={provincia.bloqueada_baja_felicidad}")
+            continue
 
-        # ---cierre económico del turno que acaba de terminar ---
-        print(f"\n--- Cierre económico del turno {turno} ---")
+        # 1. Crecimiento de poblacion usa la felicidad del 
+        #    turno anterior y actualiza la base imponible que verá la economia.
+        print(f"\n--- Crecimiento de población del turno {turno} ---")
+        for imperio in imperios:
+            antes = poblacion_total(imperio)
+            procesar_crecimiento_poblacional(imperio)
+            despues = poblacion_total(imperio)
+            print(f"  [{imperio.nombre}] población total: {antes:,.0f} -> {despues:,.0f}")
+        print("-------------------------------------------\n")
+
+        # 2. Cierre económico del turno que acaba de terminar (Ecuación 1.1)
+        print(f"--- Cierre económico del turno {turno} ---")
         for imperio in imperios:
             resumen = procesar_cierre_economico(imperio, turno)
             mostrar_resumen_economico(imperio, resumen)
+        print("-------------------------------------------\n")
+
+        # 3. Cierre de felicidad: usa los impuestos y
+        #    saqueos YA aplicados en el cierre económico, evalúa la rebelión (4.1)
+        #    y actualiza el bloqueo de reclutamiento/construcción (4.2).
+        print(f"--- Cierre de felicidad del turno {turno} ---")
+        for imperio in imperios:
+            resumenes = procesar_cierre_felicidad(imperio)
+            mostrar_resumen_felicidad(imperio, resumenes)
         print("-------------------------------------------\n")
 
         turno += 1
