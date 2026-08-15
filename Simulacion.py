@@ -7,7 +7,7 @@ import numpy as np
 
 P_MAX_POBLACION = 1_000_000   # P_max: población máxima que puede tener una provincia 
 
-# --- constantes del subsistema Economía ---
+# constantes del subsistema Economía
 TASA_INTERES_DEUDA = 0.05     # τ_interes: %/turno sobre la deuda acumulada (parámetro de calibración)
 FACTOR_PRESTAMO = 1.10        # recargo del 10% aplicado a la deuda cuando se emite un préstamo (Sección 4.4)
 COEF_ADMINISTRATIVO = 0.591   # 59.1% de los impuestos totales recibidos
@@ -20,7 +20,7 @@ FACTOR_SUELO = {"Tierra": 1.0}
 FACTOR_TERRENO = {"Plano": 1.0}
 FACTOR_CLIMA = {"Templado": 1.0}
 
-# --- constantes del subsistema Población y Felicidad (Parte 3) ---
+# constantes del subsistema Población y Felicidad 
 FEL_UMBRAL = 50.0                     # Fel_umbral: umbral de felicidad para rebelión y bloqueo 
 K3_RECUPERACION = 0.05                # k3: tasa de recuperación natural hacia 100 cuando no hay saqueo 
 K4_REBELION = 0.02                    # k4: factor de probabilidad de rebelión
@@ -30,6 +30,14 @@ DECRETO_F_BONO_FELICIDAD = 15.0       # Δ_decretos: bono de felicidad del decre
 DECRETO_D_BONO_CRECIMIENTO = 0.01     # bono extra de crecimiento poblacional del decreto de repartición de oro (Decreto_d)
 TASA_CRECIMIENTO_POBLACION = 0.01     # tasa base de crecimiento poblacional por turno (calibración, modelo logístico)
 PORCENTAJE_PERDIDA_POBLACION_REBELION = 0.10  # la rebelión reduce la población de la provincia en este porcentaje (modelado)
+
+# constantes del subsistema Unidades 
+C_ORO_TROPA = 1.0        # C_oro_tropa: costo en oro por soldado reclutado
+C_POB_TROPA = 100        # C_pob_tropa: habitantes necesarios por soldado reclutado
+C_PA_TROPA = 1.0         # C_PA_tropa: costo fijo de PA por orden de reclutamiento
+C_ORO_TORRE = 50.0       # C_oro_torre: costo en oro por Torre de Vigilancia
+C_PA_TORRE = 0.5         # C_PA_torre: costo fijo de PA por construcción de torre
+MANT_UNITARIO = 0.1      # Mant: costo de mantenimiento en oro por soldado y por turno (Ecuación 1.4, calibración)
 
 
 # CLASE IMPERIO
@@ -148,6 +156,15 @@ def mostrar_estado_imperios(imperios):
     print("---------------------------------------\n")
 
 
+def buscar_provincia(mapa, id_prov):
+    """Recorre la matriz y devuelve la Provincia con el ID indicado (o None si no existe)."""
+    for fila in mapa:
+        for provincia in fila:
+            if provincia.id == id_prov:
+                return provincia
+    return None
+
+
 def crear_mapa(filas, columnas):
     """Crea la matriz de provincias del tamaño indicado."""
     mapa = []
@@ -190,7 +207,7 @@ def asignar_provincias_iniciales(mapa, imperios):
 # PARTE 2: SUBSISTEMA ECONOMÍA
 # Implementa la Ecuación 1.1 (Actualización del Tesoro Imperial) y sus
 # componentes auxiliares (1.3 Actividad Comercial, 1.5 Costo de Gobierno,
-# y la condición de préstamo automático por deuda, Sección 4.4).
+
 
 def obtener_mes(turno):
     """Convierte el número de turno en 'mes' del ciclo anual (1-12).
@@ -210,7 +227,7 @@ def calcular_actividad_comercial(provincia):
 
 
 def calcular_pago_gobernador(poblacion):
-    """Ecuación 1.5: f(P_i(t)), función a trozos según la población de la provincia.
+    """función a trozos según la población de la provincia.
     Devuelve el pago en oro correspondiente a ese tramo de población."""
     if poblacion < 50_000:
         return 0
@@ -232,11 +249,8 @@ def calcular_costo_gobierno(imperio):
 
 
 def calcular_gasto_mantenimiento(imperio):
-    """Ecuación 1.4: GM(t) = Cant_total(t) · Mant.
-    Por ahora no existen unidades, así que
-    devuelve 0, pero la estructura ya queda lista para cuando exista
-    imperio.unidades_totales y una constante MANT_UNITARIO."""
-    return imperio.unidades_totales * 0  # placeholder
+    """Ecuación 1.4: GM(t) = Cant_total(t) · Mant."""
+    return imperio.unidades_totales * MANT_UNITARIO
 
 
 def procesar_cierre_economico(imperio, turno):
@@ -443,6 +457,70 @@ def mostrar_resumen_felicidad(imperio, resumenes):
         print(f"    P{p.id:02d} | {estado}")
 
 
+
+# PARTE 4: SUBSISTEMA UNIDADES
+
+def reclutar_soldados(imperio, provincia, cantidad):
+    """Orden de reclutamiento (Evento E4): recluta `cantidad` soldados en la provincia.
+    Validaciones y costos:
+      - la provincia debe ser del imperio y no estar bloqueada por baja felicidad (4.2);
+      - cantidad > 0;
+      - PA disponibles >= C_PA_TROPA (1 PA fijo por orden, no por soldado);
+      - tesoro >= cantidad · C_ORO_TROPA;
+      - población >= cantidad · C_POB_TROPA.
+    Si todo pasa, se descuentan oro, población y PA, y la cantidad se suma a la
+    guarnición de la provincia (u_prov) y al total del imperio (unidades_totales).
+    Devuelve un diccionario con el resultado o el motivo de rechazo."""
+    if provincia.dueño is not imperio:
+        return {"ok": False, "motivo": "la provincia no pertenece a este imperio"}
+    if provincia.bloqueada_baja_felicidad:
+        return {"ok": False, "motivo": "provincia bloqueada por baja felicidad (Sección 4.2)"}
+    if cantidad <= 0:
+        return {"ok": False, "motivo": "la cantidad debe ser positiva"}
+
+    costo_oro = cantidad * C_ORO_TROPA
+    costo_poblacion = cantidad * C_POB_TROPA
+
+    if imperio.puntos_accion_actual < C_PA_TROPA:
+        return {"ok": False, "motivo": "puntos de acción insuficientes"}
+    if imperio.tesoro < costo_oro:
+        return {"ok": False, "motivo": f"tesoro insuficiente (se necesitan {costo_oro:.1f} oro)"}
+    if provincia.poblacion < costo_poblacion:
+        return {"ok": False, "motivo": f"población insuficiente (se necesitan {costo_poblacion:,} habitantes)"}
+
+    imperio.tesoro -= costo_oro
+    provincia.poblacion -= costo_poblacion
+    imperio.puntos_accion_actual -= C_PA_TROPA
+    provincia.u_prov += cantidad
+    imperio.unidades_totales += cantidad
+
+    return {"ok": True, "cantidad": cantidad, "costo_oro": costo_oro,
+            "costo_poblacion": costo_poblacion}
+
+
+def construir_torre_vigilancia(imperio, provincia):
+    """Construye una Torre de Vigilancia en la provincia (se construye una sola vez).
+    Validaciones: provincia propia, no bloqueada (4.2), sin torre previa,
+    tesoro >= C_ORO_TORRE y PA >= C_PA_TORRE.
+    Devuelve un diccionario con el resultado o el motivo de rechazo."""
+    if provincia.dueño is not imperio:
+        return {"ok": False, "motivo": "la provincia no pertenece a este imperio"}
+    if provincia.bloqueada_baja_felicidad:
+        return {"ok": False, "motivo": "provincia bloqueada por baja felicidad (Sección 4.2)"}
+    if provincia.torre_vigilancia:
+        return {"ok": False, "motivo": "la provincia ya tiene torre de vigilancia"}
+    if imperio.tesoro < C_ORO_TORRE:
+        return {"ok": False, "motivo": f"tesoro insuficiente (se necesitan {C_ORO_TORRE:.1f} oro)"}
+    if imperio.puntos_accion_actual < C_PA_TORRE:
+        return {"ok": False, "motivo": "puntos de acción insuficientes"}
+
+    imperio.tesoro -= C_ORO_TORRE
+    imperio.puntos_accion_actual -= C_PA_TORRE
+    provincia.torre_vigilancia = True
+
+    return {"ok": True, "costo_oro": C_ORO_TORRE, "costo_pa": C_PA_TORRE}
+
+
 def main():
     # variables de control de la partida
     turno = 1
@@ -472,18 +550,59 @@ def main():
 
     # Bucle principal de turnos
     while not partida_terminada:
-        print("Partida en turno:", turno, "Haga sus movimientos")
+        print(f"Partida en turno {turno} | {imperio_jugador.nombre}: "
+              f"tesoro={imperio_jugador.tesoro:.1f} oro, "
+              f"PA={imperio_jugador.puntos_accion_actual}/{imperio_jugador.puntos_accion_max} | "
+              f"Haga sus movimientos")
         mostrar_mapa(mapa)
 
         # Aquí puedes agregar la lógica de la partida, como movimientos de jugadores, actualizaciones de estado, etc.
         #
 
-        respuesta = input("Presiona ENTER para avanzar | 'salir' | 'fel <id> <0-100>' | 'estado': ")
+        respuesta = input("ENTER avanzar | 'salir' | 'reclutar <id> <cant>' | 'torre <id>' | "
+                          "'fel <id> <0-100>' | 'estado': ")
         respuesta = respuesta.strip().lower()
 
         if respuesta == "salir":
             print("Terminando juego...")
             break
+        elif respuesta.startswith("reclutar "):
+            #recluta soldados en una provincia propia .
+            partes = respuesta.split()
+            try:
+                id_prov = int(partes[1])
+                cantidad = int(partes[2])
+                provincia = buscar_provincia(mapa, id_prov)
+                if provincia is None:
+                    print(f"  No existe la provincia {id_prov:02d}")
+                else:
+                    res = reclutar_soldados(imperio_jugador, provincia, cantidad)
+                    if res["ok"]:
+                        print(f"  Reclutados {res['cantidad']} soldados en P{id_prov:02d} "
+                              f"(-{res['costo_oro']:.1f} oro, -{res['costo_poblacion']:,} población, -1 PA)")
+                    else:
+                        print(f"  No se pudo reclutar: {res['motivo']}")
+            except (ValueError, IndexError):
+                print("  Uso: reclutar <id_provincia> <cantidad>")
+            continue
+        elif respuesta.startswith("torre "):
+            # construye una Torre de Vigilancia en una provincia propia.
+            partes = respuesta.split()
+            try:
+                id_prov = int(partes[1])
+                provincia = buscar_provincia(mapa, id_prov)
+                if provincia is None:
+                    print(f"  No existe la provincia {id_prov:02d}")
+                else:
+                    res = construir_torre_vigilancia(imperio_jugador, provincia)
+                    if res["ok"]:
+                        print(f"  Torre de Vigilancia construida en P{id_prov:02d} "
+                              f"(-{res['costo_oro']:.1f} oro, -{res['costo_pa']:.1f} PA)")
+                    else:
+                        print(f"  No se pudo construir la torre: {res['motivo']}")
+            except (ValueError, IndexError):
+                print("  Uso: torre <id_provincia>")
+            continue
         elif respuesta.startswith("fel "):
             # Comando para forzar la felicidad de una provincia y probar que funcione. 
             # para poder probar el disparo de rebelión (4.1) y el bloqueo (4.2).
@@ -509,7 +628,8 @@ def main():
                     dueño = provincia.dueño.nombre if provincia.dueño else "libre"
                     print(f"  P{provincia.id:02d} ({dueño}): pob={provincia.poblacion:,.0f} "
                           f"fel={provincia.felicidad:.1f} reb={provincia.rebelion} "
-                          f"bloq={provincia.bloqueada_baja_felicidad}")
+                          f"bloq={provincia.bloqueada_baja_felicidad} "
+                          f"soldados={provincia.u_prov} torre={'SI' if provincia.torre_vigilancia else 'no'}")
             continue
 
         # 1. Crecimiento de poblacion usa la felicidad del 
@@ -539,6 +659,8 @@ def main():
         print("-------------------------------------------\n")
 
         turno += 1
+        for imperio in imperios:
+            imperio.resetear_puntos_accion()   # los PA se reponen al iniciar el nuevo turno (Parte 4)
         print("Avanzando al siguiente turno...")
       # inspeccionar_provincia(mapa, input("Ingrese el ID de la provincia a inspeccionar: "))
     print("\n=== FIN DE LA PARTIDA ===")
