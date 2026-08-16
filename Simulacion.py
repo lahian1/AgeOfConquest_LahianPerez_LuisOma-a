@@ -21,15 +21,15 @@ FACTOR_TERRENO = {"Plano": 1.0}
 FACTOR_CLIMA = {"Templado": 1.0}
 
 # constantes del subsistema Población y Felicidad 
-FEL_UMBRAL = 50.0                     # Fel_umbral: umbral de felicidad para rebelión y bloqueo 
+FEL_UMBRAL = 50.0                     # Fel_umbral: umbral de felicidad para rebelion y bloqueo 
 K3_RECUPERACION = 0.05                # k3: tasa de recuperación natural hacia 100 cuando no hay saqueo 
-K4_REBELION = 0.02                    # k4: factor de probabilidad de rebelión
-PENALIDAD_IMPUESTOS_FELICIDAD = 0.1   # cada punto % de tasa combinada resta esta fracción de felicidad (calibración)
+K4_REBELION = 0.02                    # k4: factor de probabilidad de rebelion
+PENALIDAD_IMPUESTOS_FELICIDAD = 0.1   # cada punto % de tasa combinada resta esta fracción de felicidad (calibracion)
 SAQUEO_PENALIDAD_FELICIDAD = 20.0     # reducción de felicidad por saqueo activo en la provincia 
 DECRETO_F_BONO_FELICIDAD = 15.0       # Δ_decretos: bono de felicidad del decreto de fertilidad (Decreto_f)
 DECRETO_D_BONO_CRECIMIENTO = 0.01     # bono extra de crecimiento poblacional del decreto de repartición de oro (Decreto_d)
-TASA_CRECIMIENTO_POBLACION = 0.01     # tasa base de crecimiento poblacional por turno (calibración, modelo logístico)
-PORCENTAJE_PERDIDA_POBLACION_REBELION = 0.10  # la rebelión reduce la población de la provincia en este porcentaje (modelado)
+TASA_CRECIMIENTO_POBLACION = 0.01     # tasa base de crecimiento poblacional por turno (calibracion) 
+PORCENTAJE_PERDIDA_POBLACION_REBELION = 0.10  # la rebelion reduce la población de la provincia en este porcentaje (modelado)
 
 # constantes del subsistema Unidades 
 C_ORO_TROPA = 1.0        # C_oro_tropa: costo en oro por soldado reclutado
@@ -37,7 +37,10 @@ C_POB_TROPA = 100        # C_pob_tropa: habitantes necesarios por soldado reclut
 C_PA_TROPA = 1.0         # C_PA_tropa: costo fijo de PA por orden de reclutamiento
 C_ORO_TORRE = 50.0       # C_oro_torre: costo en oro por Torre de Vigilancia
 C_PA_TORRE = 0.5         # C_PA_torre: costo fijo de PA por construcción de torre
-MANT_UNITARIO = 0.1      # Mant: costo de mantenimiento en oro por soldado y por turno (Ecuación 1.4, calibración)
+MANT_UNITARIO = 0.1      # Mant: costo de mantenimiento en oro por soldado y por turno 
+
+# constantes del subsistema Diplomacia 
+TASA_TRIBUTO = 0.05      # % de los impuestos del vasallo que se pagan como tributo al protector 
 
 
 # CLASE IMPERIO
@@ -47,6 +50,9 @@ class Imperio:
         self.nombre = nombre                # Variable auxiliar: identificador para UI y diplomacia
         self.tesoro = tesoro_inicial         # Variable de estado: reserva monetaria (oro)
         self.deuda = 0.0                     # Variable de estado: monto adeudado acumulado
+
+        self.tributos_recibidos = 0.0        # Flujo (F): tributos entrantes por vasallaje recibido (Parte 5)
+        self.tributos_pagados = 0.0          # Flujo (F): tributos salientes por protección otorgada (Parte 5)
 
 
         self.puntos_accion_max = 5.0         # Parámetro (P): capacidad fija de PA por turno
@@ -281,8 +287,8 @@ def procesar_cierre_economico(imperio, turno):
         aporte_comercio = (imperio.tasa_impuesto_comercio / 100) * provincia.ac
         provincia.imp_prov = aporte_directo + aporte_comercio
 
-    trib_rec = 0.0   # Tributos diplomaticos
-    trib_pag = 0.0
+    trib_rec = imperio.tributos_recibidos   # Tributos diplomáticos entrantes (calculados por calcular_tributos, Parte 5)
+    trib_pag = imperio.tributos_pagados     # Tributos diplomáticos salientes (Parte 5)
 
     ingreso_total = impuestos_directos_anual + impuestos_comercio + trib_rec - trib_pag
 
@@ -308,6 +314,8 @@ def procesar_cierre_economico(imperio, turno):
         "mes": mes,
         "impuestos_directos_anual": impuestos_directos_anual,
         "impuestos_comercio": impuestos_comercio,
+        "tributos_recibidos": trib_rec,
+        "tributos_pagados": trib_pag,
         "ingreso_total": ingreso_total,
         "gasto_mantenimiento": gasto_mantenimiento,
         "intereses_deuda": intereses_deuda,
@@ -323,7 +331,9 @@ def mostrar_resumen_economico(imperio, resumen):
     print(f"  [{imperio.nombre}] mes={resumen['mes']} | "
           f"ingreso={resumen['ingreso_total']:.2f} "
           f"(directo_anual={resumen['impuestos_directos_anual']:.2f}, "
-          f"comercio={resumen['impuestos_comercio']:.2f}) | "
+          f"comercio={resumen['impuestos_comercio']:.2f}, "
+          f"trib_rec={resumen['tributos_recibidos']:.2f}, "
+          f"trib_pag={resumen['tributos_pagados']:.2f}) | "
           f"gasto={resumen['gasto_total']:.2f} "
           f"(mantenimiento={resumen['gasto_mantenimiento']:.2f}, "
           f"interes={resumen['intereses_deuda']:.2f}, "
@@ -521,6 +531,122 @@ def construir_torre_vigilancia(imperio, provincia):
     return {"ok": True, "costo_oro": C_ORO_TORRE, "costo_pa": C_PA_TORRE}
 
 
+
+# PARTE 5: SUBSISTEMA DIPLOMACIA
+
+class Diplomacia:
+    """Tabla de relaciones entre pares de imperios y de protección (vasallaje)."""
+
+    PAZ = "paz"
+    GUERRA = "guerra"
+    ALIANZA = "alianza"
+    ALTO_AL_FUEGO = "alto_al_fuego"
+
+    def __init__(self):
+        self.estados = {}       # (imperio_a, imperio_b) -> estado de relación
+        self.protecciones = {}  # protegido -> protector (vasallaje activo)
+
+    @staticmethod
+    def _clave(a, b):
+        """Clave simétrica para la pareja de imperios (el orden no importa)."""
+        return (a, b) if id(a) < id(b) else (b, a)
+
+    def estado(self, a, b):
+        """Devuelve el estado de relación actual."""
+        return self.estados.get(self._clave(a, b), self.PAZ)
+
+    def _establecer(self, a, b, estado):
+        self.estados[self._clave(a, b)] = estado
+
+    def declarar_guerra(self, a, b):
+        """Evento E7: pasa la relación a guerra (si había alianza, esta se rompe).
+        Solo en guerra es legal atacar."""
+        if self.estado(a, b) == self.GUERRA:
+            return {"ok": False, "motivo": "ya están en guerra"}
+        self._establecer(a, b, self.GUERRA)
+        return {"ok": True, "estado": self.GUERRA}
+
+    def proponer_paz(self, a, b):
+        """Propuesta de paz: de guerra pasa a alto el fuego (tregua); de alto el
+        fuego a paz plena. Durante la tregua tampoco es legal atacar."""
+        actual = self.estado(a, b)
+        if actual == self.GUERRA:
+            self._establecer(a, b, self.ALTO_AL_FUEGO)
+            return {"ok": True, "estado": self.ALTO_AL_FUEGO,
+                    "motivo": "alto el fuego acordado (tregua)"}
+        elif actual == self.ALTO_AL_FUEGO:
+            self._establecer(a, b, self.PAZ)
+            return {"ok": True, "estado": self.PAZ, "motivo": "paz firmada"}
+        elif actual == self.PAZ:
+            return {"ok": False, "motivo": "ya están en paz"}
+        else:
+            return {"ok": False, "motivo": "no están en guerra; no tiene sentido proponer paz"}
+
+    def formar_alianza(self, a, b):
+        """Solo se puede firmar alianza desde el estado de paz."""
+        if self.estado(a, b) != self.PAZ:
+            return {"ok": False, "motivo": "solo se puede aliarse desde el estado de paz"}
+        self._establecer(a, b, self.ALIANZA)
+        return {"ok": True, "estado": self.ALIANZA}
+
+    def romper_alianza(self, a, b):
+        """Rompe la alianza activa (la relación vuelve a paz)."""
+        if self.estado(a, b) != self.ALIANZA:
+            return {"ok": False, "motivo": "no hay alianza activa"}
+        self._establecer(a, b, self.PAZ)
+        return {"ok": True, "estado": self.PAZ}
+
+    def proteger(self, protector, protegido):
+        """Establece vasallaje: el imperio protegido paga tributo al protector."""
+        if protegido is protector:
+            return {"ok": False, "motivo": "un imperio no puede protegerse a sí mismo"}
+        if self.protecciones.get(protegido) == protector:
+            return {"ok": False, "motivo": "ya existe esa protección"}
+        self.protecciones[protegido] = protector
+        return {"ok": True}
+
+    def es_legal_atacar(self, a, b):
+        """Regla de legalidad"""
+        return self.estado(a, b) == self.GUERRA
+
+
+def otro_imperio(imperios, imperio):
+    """Devuelve el imperio rival (el que no es `imperio`) de la lista."""
+    for otro in imperios:
+        if otro is not imperio:
+            return otro
+    return None
+
+
+def calcular_tributos(diplomacia, imperios, turno):
+    """Calcula los tributos del turno a partir de las protecciones vigentes"""
+    for imperio in imperios:
+        imperio.tributos_recibidos = 0.0
+        imperio.tributos_pagados = 0.0
+
+    mes = obtener_mes(turno)
+    for protegido, protector in diplomacia.protecciones.items():
+        impuestos = 0.0
+        for p in protegido.provincias:
+            impuestos += (protegido.tasa_impuesto_comercio / 100) * p.ac
+            if mes == 1:
+                impuestos += (protegido.tasa_impuesto / 100) * p.poblacion
+        tributo = TASA_TRIBUTO * impuestos
+        protegido.tributos_pagados += tributo
+        protector.tributos_recibidos += tributo
+
+
+def mostrar_relaciones(diplomacia, imperios):
+    """Imprime la tabla de relaciones entre todos los pares de imperios y los vasallajes."""
+    print("  Tabla de relaciones diplomáticas:")
+    for i in range(len(imperios)):
+        for j in range(i + 1, len(imperios)):
+            a, b = imperios[i], imperios[j]
+            print(f"    {a.nombre} <-> {b.nombre}: {diplomacia.estado(a, b)}")
+    for protegido, protector in diplomacia.protecciones.items():
+        print(f"    {protegido.nombre} esta protegido por {protector.nombre} (paga tributo)")
+
+
 def main():
     # variables de control de la partida
     turno = 1
@@ -537,6 +663,9 @@ def main():
     imperio_jugador = Imperio("Jugador", tesoro_inicial=1000.0)
     imperio_ia = Imperio("IA", tesoro_inicial=1000.0)
     imperios = [imperio_jugador, imperio_ia]
+
+    # Diplomacia: tabla de relaciones y vasallajes
+    diplomacia = Diplomacia()
 
     # Reparto inicial de provincias entre los dos imperios de prueba (incluye ubicación del rey)
     asignar_provincias_iniciales(mapa, imperios)
@@ -560,12 +689,59 @@ def main():
         #
 
         respuesta = input("ENTER avanzar | 'salir' | 'reclutar <id> <cant>' | 'torre <id>' | "
+                          "'guerra' | 'paz' | 'alianza' | 'romper' | 'proteger' | 'relaciones' | "
                           "'fel <id> <0-100>' | 'estado': ")
         respuesta = respuesta.strip().lower()
 
         if respuesta == "salir":
             print("Terminando juego...")
             break
+        elif respuesta == "guerra":
+            # Parte 5: declara la guerra contra el otro imperio.
+            rival = otro_imperio(imperios, imperio_jugador)
+            res = diplomacia.declarar_guerra(imperio_jugador, rival)
+            if res["ok"]:
+                print(f"  Guerra declarada contra {rival.nombre} (E7)")
+            else:
+                print(f"  No se pudo declarar guerra: {res['motivo']}")
+            continue
+        elif respuesta == "paz":
+            # Parte 5: propone paz (guerra -> alto el fuego -> paz).
+            rival = otro_imperio(imperios, imperio_jugador)
+            res = diplomacia.proponer_paz(imperio_jugador, rival)
+            if res["ok"]:
+                print(f"  {res['motivo']} ({res['estado']})")
+            else:
+                print(f"  No se pudo proponer paz: {res['motivo']}")
+            continue
+        elif respuesta == "alianza":
+            rival = otro_imperio(imperios, imperio_jugador)
+            res = diplomacia.formar_alianza(imperio_jugador, rival)
+            if res["ok"]:
+                print(f"  Alianza firmada con {rival.nombre}")
+            else:
+                print(f"  No se pudo formar alianza: {res['motivo']}")
+            continue
+        elif respuesta == "romper":
+            rival = otro_imperio(imperios, imperio_jugador)
+            res = diplomacia.romper_alianza(imperio_jugador, rival)
+            if res["ok"]:
+                print(f"  Alianza rota con {rival.nombre}")
+            else:
+                print(f"  No se pudo romper la alianza: {res['motivo']}")
+            continue
+        elif respuesta == "proteger":
+            # Parte 5: convierte al otro imperio en vasallo del Jugador (paga tributo).
+            rival = otro_imperio(imperios, imperio_jugador)
+            res = diplomacia.proteger(imperio_jugador, rival)
+            if res["ok"]:
+                print(f"  {rival.nombre} ahora es vasallo de {imperio_jugador.nombre} (paga tributo)")
+            else:
+                print(f"  No se pudo establecer la protección: {res['motivo']}")
+            continue
+        elif respuesta == "relaciones":
+            mostrar_relaciones(diplomacia, imperios)
+            continue
         elif respuesta.startswith("reclutar "):
             #recluta soldados en una provincia propia .
             partes = respuesta.split()
@@ -642,7 +818,14 @@ def main():
             print(f"  [{imperio.nombre}] población total: {antes:,.0f} -> {despues:,.0f}")
         print("-------------------------------------------\n")
 
-        # 2. Cierre económico del turno que acaba de terminar (Ecuación 1.1)
+        # 2. Cierre económico del turno que acaba de terminar.
+        #    Antes de recaudar se calculan los tributos diplomáticos, que
+        #    dependen de la actividad comercial ya actualizada de cada imperio.
+        for imperio in imperios:
+            for provincia in imperio.provincias:
+                calcular_actividad_comercial(provincia)
+        calcular_tributos(diplomacia, imperios, turno)
+
         print(f"--- Cierre económico del turno {turno} ---")
         for imperio in imperios:
             resumen = procesar_cierre_economico(imperio, turno)
