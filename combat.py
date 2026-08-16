@@ -248,6 +248,9 @@ def mostrar_reporte_combate(reporte):
     if reporte["resultado"] == "VICTORIA_ATACANTE":
         print(f"  -> VICTORIA DEL ATACANTE (E9): provincia conquistada, "
               f"sobreviven {reporte['atacantes_supervivientes']} atacantes")
+        if reporte.get("rey_capturado"):
+            print(f"  -> CAPTURA DEL REY (4.5): el rey enemigo fue capturado, "
+                  f"todas sus provincias restantes cambian de duenio")
     elif reporte["resultado"] == "VICTORIA_DEFENSOR":
         print(f"  -> VICTORIA DEL DEFENSOR: el atacante se repliega, "
               f"sobreviven {reporte['defensores_supervivientes']} defensores")
