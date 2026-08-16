@@ -3,7 +3,7 @@ from constantes import (
     P_MAX_POBLACION, TASA_CRECIMIENTO_POBLACION,
     DECRETO_D_BONO_CRECIMIENTO, DECRETO_F_BONO_FELICIDAD,
     FEL_UMBRAL, K3_RECUPERACION, K4_REBELION,
-    PENALIDAD_IMPUESTOS_FELICIDAD, SAQUEO_PENALIDAD_FELICIDAD,
+    PENALIDAD_IMPUESTOS_FELICIDAD,
     PORCENTAJE_PERDIDA_POBLACION_REBELION,
 )
 
@@ -41,10 +41,9 @@ def actualizar_felicidad(provincia, imperio):
         Fel_i(t+1) = clip( Fel_i(t)
             + Delta_decretos_i(t)                       # bono del decreto de fertilidad (Decreto_f)
             - penalidad_fiscal(t)                       # los impuestos descontentan a la poblacion
-            - penalidad_saqueo(t)                       # el saqueo (Saq_i(t)) golpea la moral
-            + k3 * (100 - Fel_i(t)) * 1[sin_saqueo]    # recuperacion natural hacia el maximo
+            + k3 * (100 - Fel_i(t)) * 1[turnos_saqueado==0]  # recuperacion natural (bloqueada si saqueada)
             , 0, 100 )
-   """
+    """
     fel = provincia.felicidad
 
     delta_decretos = DECRETO_F_BONO_FELICIDAD if provincia.decreto_f else 0.0
@@ -53,13 +52,11 @@ def actualizar_felicidad(provincia, imperio):
         imperio.tasa_impuesto + imperio.tasa_impuesto_comercio
     )
 
-    penalidad_saqueo = SAQUEO_PENALIDAD_FELICIDAD if provincia.saqueo else 0.0
-
     recuperacion = 0.0
-    if not provincia.saqueo:
+    if provincia.turnos_saqueado == 0:
         recuperacion = K3_RECUPERACION * (100.0 - fel)
 
-    nueva_fel = fel + delta_decretos - penalidad_fiscal - penalidad_saqueo + recuperacion
+    nueva_fel = fel + delta_decretos - penalidad_fiscal + recuperacion
     provincia.felicidad = min(100.0, max(0.0, nueva_fel))
     return provincia.felicidad
 
@@ -96,6 +93,9 @@ def procesar_cierre_felicidad(imperio):
     for provincia in imperio.provincias:
         provincia.rebelion = False
         felicidad_anterior = provincia.felicidad
+
+        if provincia.turnos_saqueado > 0:
+            provincia.turnos_saqueado -= 1
 
         actualizar_felicidad(provincia, imperio)
 

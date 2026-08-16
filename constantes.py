@@ -20,7 +20,7 @@ FEL_UMBRAL = 50.0                     # Fel_umbral: umbral de felicidad para reb
 K3_RECUPERACION = 0.05                # k3: tasa de recuperacion natural hacia 100 cuando no hay saqueo
 K4_REBELION = 0.02                    # k4: factor de probabilidad de rebelion
 PENALIDAD_IMPUESTOS_FELICIDAD = 0.1   # cada punto % de tasa combinada resta esta fraccion de felicidad (calibracion)
-SAQUEO_PENALIDAD_FELICIDAD = 20.0     # reduccion de felicidad por saqueo activo en la provincia
+SAQUEO_PENALIDAD_FELICIDAD = 30.0     # reduccion de felicidad al saquear una provincia
 DECRETO_F_BONO_FELICIDAD = 15.0       # Delta_decretos: bono de felicidad del decreto de fertilidad (Decreto_f)
 DECRETO_D_BONO_CRECIMIENTO = 0.01     # bono extra de crecimiento poblacional del decreto de reparticion de oro (Decreto_d)
 TASA_CRECIMIENTO_POBLACION = 0.01     # tasa base de crecimiento poblacional por turno (calibracion)
@@ -50,5 +50,14 @@ C_PA_MOVIMIENTO = 0.5     # PA consumidos por cada orden de movimiento o ataque
 C_ORO_FORT = 100.0        # costo en oro de fortificar una provincia (Seccion 2.2)
 C_PA_FORT = 0.5           # costo en PA de fortificar una provincia
 SAQUEO_BOTIN = 0.5        # % de la actividad comercial obtenido como botin al saquear (Evento E10)
+DURACION_SAQUEO = 4        # turnos de inactividad de la provincia tras un saqueo (Seccion 4.6)
+C_PA_SAQUEO = 1.0          # PA consumidos por ordenar un saqueo
 FACTOR_TERRENO_ATAQUE = {"Plano": 1.0}    # theta_terreno,atacante: multiplicador por terreno del atacante (2.1)
 FACTOR_TERRENO_DEFENSA = {"Plano": 1.0}   # theta_terreno,defensor: multiplicador por terreno del defensor (2.1)
+
+# constantes del subsistema LEF (Parte 7) - prioridad logica de ejecucion dentro del mismo turno
+PRIORIDAD_COMBATE = 1      # se ejecuta primero: resolver combates pendientes
+PRIORIDAD_SAQUEO = 2       # despues de combate: ejecutar saqueos programados
+PRIORIDAD_PRODUCCION = 3   # crecimiento poblacional y produccion de unidades
+PRIORIDAD_ECONOMIA = 4     # recaudacion y gastos
+PRIORIDAD_FELICIDAD = 5    # actualizacion de felicidad y evaluacion de rebelion

@@ -11,7 +11,9 @@ from economia import calcular_actividad_comercial
 from poblacion import poblacion_total
 from unidades import reclutar_soldados, construir_torre_vigilancia, recalcular_unidades_totales
 from diplomacia import mostrar_relaciones
-from combat import ordenar_movimiento, fortificar_provincia, C_PA_MOVIMIENTO
+from constantes import C_PA_SAQUEO, DURACION_SAQUEO
+from combat import ordenar_movimiento, fortificar_provincia, saquear, C_PA_MOVIMIENTO
+from lef import LEF
 from turno import cierre_de_turno
 
 
@@ -33,6 +35,9 @@ def main():
 
     # Diplomacia: tabla de relaciones y vasallajes
     diplomacia = Diplomacia()
+
+    # LEF: Lista de Eventos Futuros (Parte 7)
+    lef = LEF()
 
     # Reparto inicial de provincias entre los dos imperios de prueba (incluye ubicacion del rey)
     asignar_provincias_iniciales(mapa, imperios)
@@ -56,6 +61,7 @@ def main():
 
         respuesta = input("ENTER avanzar | 'salir' | 'reclutar <id> <cant>' | 'torre <id>' | "
                           "'mover <origen> <destino> <cant>' | 'fortificar <id>' | "
+                          "'saquear <id>' | "
                           "'guerra' | 'paz' | 'alianza' | 'romper' | 'proteger' | 'relaciones' | "
                           "'fel <id> <0-100>' | 'tropas <id> <cant>' | 'estado': ")
         respuesta = respuesta.strip().lower()
@@ -177,6 +183,29 @@ def main():
             except (ValueError, IndexError):
                 print("  Uso: fortificar <id_provincia>")
             continue
+        elif respuesta.startswith("saquear "):
+            partes = respuesta.split()
+            try:
+                id_prov = int(partes[1])
+                provincia = buscar_provincia(mapa, id_prov)
+                if provincia is None:
+                    print(f"  No existe la provincia {id_prov:02d}")
+                elif provincia.dueño is not imperio_jugador:
+                    print(f"  La provincia P{id_prov:02d} no te pertenece")
+                else:
+                    res = saquear(imperio_jugador, provincia)
+                    if res["ok"]:
+                        imperio_jugador.puntos_accion_actual -= C_PA_SAQUEO
+                        lef.programar_evento("SAQUEO", turno + 1,
+                                             {"provincia": provincia, "imperio": imperio_jugador})
+                        print(f"  Saqueo (E10) programado para P{id_prov:02d} en turno {turno + 1}")
+                        print(f"  (-{C_PA_SAQUEO:.0f} PA, +oro, -30 felicidad, -20% poblacion,")
+                        print(f"   inactiva {DURACION_SAQUEO} turnos: sin impuestos, comercio ni reclutamiento)")
+                    else:
+                        print(f"  No se puede saquear: {res['motivo']}")
+            except (ValueError, IndexError):
+                print("  Uso: saquear <id_provincia>")
+            continue
         elif respuesta.startswith("tropas "):
             # Comando de depuracion de la Parte 6: fija la guarnicion de una provincia
             # para poder probar combates sin depender del reclutamiento normal.
@@ -225,7 +254,7 @@ def main():
             continue
 
         # Si el usuario solo presiona ENTER (respuesta vacia), cerrar el turno
-        cierre_de_turno(turno, imperios, mapa, diplomacia)
+        cierre_de_turno(turno, imperios, mapa, diplomacia, lef)
         turno += 1
 
     print("\n=== FIN DE LA PARTIDA ===")

@@ -26,7 +26,6 @@ class Imperio:
         self.tasa_impuesto_comercio = 5.0    # % (tau_com), aplicado cada turno
 
 
-        # total de provincias se implementara en la parte de Combate/Diplomacia.
         self.ubicacion_rey = None            # Referencia a la Provincia donde reside el rey
         self.rey_capturado = False           # Variable de estado (E): True si el rey fue capturado
 
@@ -54,12 +53,11 @@ class Provincia:
         self.id = id_prov
         self.posicion = (fila, columna)
 
-        # hay que generar estos parametros aleatoriamente pero ahora los dejo fijos para poder probar el juego
         self.suelo = suelo
         self.terreno = terreno
         self.clima = "Templado"
 
-        self.dueño = None                    # Referencia al Imperio propietario (antes: dueño Y propietario duplicados)
+        self.dueño = None                    # Referencia al Imperio propietario
 
         self.poblacion = 1000                # Variable de estado (personas). Tope: P_MAX_POBLACION (Seccion 4.3)
         self.felicidad = 80.0                # Variable de estado, porcentaje 0-100
@@ -70,7 +68,7 @@ class Provincia:
 
         self.ac = 0.0                        # actividad_comercial: variable de flujo (Ecuacion 1.3)
         self.imp_prov = 0.0                  # impuestos generados por esta provincia en el turno actual
-        self.saqueo = False                  # Flujo (F): accion de saqueo activa este turno
+        self.turnos_saqueado = 0             # Variable de estado (E): turnos restantes de inactividad por saqueo (4.6)
         self.decreto_f = False               # Decreto_f: bono de felicidad (fertilidad)
         self.decreto_d = False               # Decreto_d: bono de poblacion (reparticion de oro)
         self.venta = False

@@ -14,6 +14,8 @@ def reclutar_soldados(imperio, provincia, cantidad):
     Devuelve un diccionario con el resultado o el motivo de rechazo."""
     if provincia.dueño is not imperio:
         return {"ok": False, "motivo": "la provincia no pertenece a este imperio"}
+    if provincia.turnos_saqueado > 0:
+        return {"ok": False, "motivo": f"provincia saqueada e inactiva ({provincia.turnos_saqueado} turnos restantes)"}
     if provincia.bloqueada_baja_felicidad:
         return {"ok": False, "motivo": "provincia bloqueada por baja felicidad (Seccion 4.2)"}
     if cantidad <= 0:
@@ -46,6 +48,8 @@ def construir_torre_vigilancia(imperio, provincia):
     Devuelve un diccionario con el resultado o el motivo de rechazo."""
     if provincia.dueño is not imperio:
         return {"ok": False, "motivo": "la provincia no pertenece a este imperio"}
+    if provincia.turnos_saqueado > 0:
+        return {"ok": False, "motivo": f"provincia saqueada e inactiva ({provincia.turnos_saqueado} turnos restantes)"}
     if provincia.bloqueada_baja_felicidad:
         return {"ok": False, "motivo": "provincia bloqueada por baja felicidad (Seccion 4.2)"}
     if provincia.torre_vigilancia:

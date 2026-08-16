@@ -14,7 +14,11 @@ def obtener_mes(turno):
 
 def calcular_actividad_comercial(provincia):
     """Ecuacion 1.3: AC_i(t) = AC_base,i * theta_terreno,i * theta_clima,i(t).
-    Actualiza provincia.ac y tambien lo retorna."""
+    Actualiza provincia.ac y tambien lo retorna.
+    Si la provincia esta saqueada (turnos_saqueado > 0), AC = 0."""
+    if provincia.turnos_saqueado > 0:
+        provincia.ac = 0.0
+        return 0.0
     ac_base = provincia.poblacion * AC_BASE_COEF * FACTOR_SUELO.get(provincia.suelo, 1.0)
     theta_terreno = FACTOR_TERRENO.get(provincia.terreno, 1.0)
     theta_clima = FACTOR_CLIMA.get(provincia.clima, 1.0)
@@ -84,16 +88,21 @@ def procesar_cierre_economico(imperio, turno):
     impuestos_directos_anual = 0.0
     if mes == 1:
         impuestos_directos_anual = sum(
-            (imperio.tasa_impuesto / 100) * p.poblacion for p in imperio.provincias
+            (imperio.tasa_impuesto / 100) * p.poblacion
+            for p in imperio.provincias if p.turnos_saqueado == 0
         )
     impuestos_comercio = sum(
-        (imperio.tasa_impuesto_comercio / 100) * p.ac for p in imperio.provincias
+        (imperio.tasa_impuesto_comercio / 100) * p.ac
+        for p in imperio.provincias if p.turnos_saqueado == 0
     )
     # Registrar el aporte individual de cada provincia (para inspeccion/depuracion)
     for provincia in imperio.provincias:
-        aporte_directo = (imperio.tasa_impuesto / 100) * provincia.poblacion if mes == 1 else 0.0
-        aporte_comercio = (imperio.tasa_impuesto_comercio / 100) * provincia.ac
-        provincia.imp_prov = aporte_directo + aporte_comercio
+        if provincia.turnos_saqueado > 0:
+            provincia.imp_prov = 0.0
+        else:
+            aporte_directo = (imperio.tasa_impuesto / 100) * provincia.poblacion if mes == 1 else 0.0
+            aporte_comercio = (imperio.tasa_impuesto_comercio / 100) * provincia.ac
+            provincia.imp_prov = aporte_directo + aporte_comercio
 
     trib_rec = imperio.tributos_recibidos   # Tributos diplomaticos entrantes (calculados por calcular_tributos, Parte 5)
     trib_pag = imperio.tributos_pagados     # Tributos diplomaticos salientes (Parte 5)

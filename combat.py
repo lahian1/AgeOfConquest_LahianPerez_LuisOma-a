@@ -3,6 +3,7 @@ from constantes import (
     ALPHA_ATAQUE, ALPHA_DEFENSA, ALPHA_LETALIDAD, BETA_LETALIDAD,
     PHI_FORT, X_MIN, X_MAX, MAX_RONDAS_COMBATE,
     C_PA_MOVIMIENTO, C_ORO_FORT, C_PA_FORT, SAQUEO_BOTIN,
+    SAQUEO_PENALIDAD_FELICIDAD, DURACION_SAQUEO, C_PA_SAQUEO,
     FACTOR_TERRENO_ATAQUE, FACTOR_TERRENO_DEFENSA,
 )
 
@@ -191,12 +192,6 @@ def resolver_ordenes_movimiento(mapa, diplomacia, imperios):
                     continue
                 reporte = atacar(mapa, imperio, destino.dueño, origen, destino, cantidad)
                 mostrar_reporte_combate(reporte)
-                if reporte["resultado"] == "VICTORIA_ATACANTE" and imperio.nombre == "Jugador":
-                    decision = input("  Provincia conquistada. Quieres saquearla? (s/n): ").strip().lower()
-                    if decision == "s":
-                        res_saqueo = saquear(imperio, destino)
-                        print(f"  Saqueo (E10): +{res_saqueo['botin']:.1f} oro de botin "
-                              f"y -10% poblacion en P{destino.id:02d}")
                 continue
 
             # Destino propio o libre: desplazamiento simple
@@ -226,15 +221,15 @@ def fortificar_provincia(imperio, provincia):
 
 
 def saquear(imperio, provincia):
-    """Evento E10: saqueo de una provincia recien conquistada. El imperio obtiene
-    un botin en oro proporcional a la actividad comercial de la provincia, la
-    provincia pierde parte de su poblacion y queda marcada con saqueo activo
-    (que penalizara la felicidad en el proximo cierre, Ecuacion 1.2)."""
-    botin = SAQUEO_BOTIN * provincia.ac
-    imperio.tesoro += botin
-    provincia.poblacion = int(provincia.poblacion * 0.9)
-    provincia.saqueo = True
-    return {"ok": True, "botin": botin}
+    """Valida si se puede ordenar un saqueo a una provincia propia (Evento E10).
+    La provincia no puede estar ya saqueada, y el imperio debe tener PA suficiente.
+    No aplica efectos aqui: los ejecuta la LEF en el turno programado.
+    Devuelve el resultado o motivo de rechazo."""
+    if provincia.turnos_saqueado > 0:
+        return {"ok": False, "motivo": f"la provincia ya esta saqueada (quedan {provincia.turnos_saqueado} turnos)"}
+    if imperio.puntos_accion_actual < C_PA_SAQUEO:
+        return {"ok": False, "motivo": "puntos de accion insuficientes"}
+    return {"ok": True}
 
 
 def mostrar_reporte_combate(reporte):

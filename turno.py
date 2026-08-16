@@ -1,4 +1,5 @@
 # Resolucion del cierre de turno (Cierre_De_Turno del pseudocodigo).
+# Integra la LEF (Parte 7) para eventos diferidos.
 
 
 from economia import (
@@ -10,11 +11,53 @@ from poblacion import (
     procesar_cierre_felicidad, mostrar_resumen_felicidad,
 )
 from combat import resolver_ordenes_movimiento
+from constantes import SAQUEO_BOTIN, SAQUEO_PENALIDAD_FELICIDAD, DURACION_SAQUEO
 
 
-def cierre_de_turno(turno, imperios, mapa, diplomacia):
-    """Ejecuta los 4 pasos del cierre del turno actual. Se llama al final de cada
-    turno, despues de que el jugador (y la IA) terminaron de dar sus ordenes."""
+def ejecutar_eventos_lef(lef, turno, imperios, mapa):
+    """Extrae y ejecuta todos los eventos de la LEF programados para el turno actual.
+    Los eventos se ejecutan en orden de prioridad logica (combate < saqueo < produccion
+    < economia < felicidad)."""
+    if not lef.hay_eventos(turno):
+        return
+
+    eventos = lef.extraer_eventos(turno)
+    print(f"--- Eventos LEF del turno {turno} ({len(eventos)} eventos) ---")
+    for evento in eventos:
+        tipo = evento["tipo"]
+        datos = evento["datos"]
+
+        if tipo == "SAQUEO":
+            provincia = datos.get("provincia")
+            imperio = datos.get("imperio")
+            if provincia is None or imperio is None:
+                print(f"  [!] Evento SAQUEO incompleto: datos faltantes")
+                continue
+            # Verificar que la provincia siga siendo del imperio
+            if provincia.dueño is not imperio:
+                print(f"  [!] Evento SAQUEO cancelado: P{provincia.id:02d} ya no pertenece a {imperio.nombre}")
+                continue
+            # Ejecutar efectos del saqueo (PA ya fue cobrado al ordenar)
+            botin = SAQUEO_BOTIN * provincia.ac
+            imperio.tesoro += botin
+            provincia.poblacion = int(provincia.poblacion * 0.80)
+            provincia.felicidad = max(0.0, provincia.felicidad - SAQUEO_PENALIDAD_FELICIDAD)
+            provincia.turnos_saqueado = DURACION_SAQUEO
+            print(f"  Saqueo (E10): +{botin:.1f} oro de botin, -30 felicidad, -20% poblacion "
+                  f"en P{provincia.id:02d} (inactiva {DURACION_SAQUEO} turnos)")
+        else:
+            print(f"  [!] Evento desconocido: {tipo}")
+    print("-------------------------------------------\n")
+
+
+def cierre_de_turno(turno, imperios, mapa, diplomacia, lef):
+    """Ejecuta los pasos del cierre del turno actual, incluyendo la LEF.
+    Se llama al final de cada turno, despues de que el jugador (y la IA)
+    terminaron de dar sus ordenes."""
+
+    # 0. Eventos LEF diferidos: se ejecutan primero, antes de las fases normales.
+    #    Combates y saqueos programados para este turno.
+    ejecutar_eventos_lef(lef, turno, imperios, mapa)
 
     # 1. Movimiento y combate (paso 1 del pseudocodigo Cierre_De_Turno):
     #    se resuelven las ordenes de movimiento/ataque encoladas durante el turno.
@@ -24,7 +67,7 @@ def cierre_de_turno(turno, imperios, mapa, diplomacia):
         print("-------------------------------------------\n")
 
     # 2. Crecimiento de poblacion usa la felicidad del
-    #    turno anterior y actualiza la base imponible que verá la economia.
+    #    turno anterior y actualiza la base imponible que vera la economia.
     print(f"\n--- Crecimiento de poblacion del turno {turno} ---")
     for imperio in imperios:
         antes = poblacion_total(imperio)
