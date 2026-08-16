@@ -42,6 +42,22 @@ MANT_UNITARIO = 0.1      # Mant: costo de mantenimiento en oro por soldado y por
 # constantes del subsistema Diplomacia 
 TASA_TRIBUTO = 0.05      # % de los impuestos del vasallo que se pagan como tributo al protector 
 
+# constantes del subsistema Movimiento y Combate 
+ALPHA_ATAQUE = 1.0        # α_ataque: coeficiente base de efectividad ofensiva (Ecuacion 2.1)
+ALPHA_DEFENSA = 1.2       # α_defensa: coeficiente base de efectividad defensiva (Ecuacion 2.1)
+ALPHA_LETALIDAD = 0.10    # α: letalidad del poder ofensivo sobre el defensor (Ecuacion 2.4)
+BETA_LETALIDAD = 0.08     # β: letalidad del poder defensivo sobre el atacante (Ecuacion 2.4)
+PHI_FORT = 0.5            # φ_fort: reduccion de bajas del defensor si esta fortificada (50% -> bajas a la mitad, Seccion 2.2)
+X_MIN = 0.85              # niebla de guerra: X ~ U(X_MIN, X_MAX) (Seccion 2.3)
+X_MAX = 1.15
+MAX_RONDAS_COMBATE = 20   # tope de rondas de la Ley Cuadratica antes de declarar la batalla sin resolucion
+C_PA_MOVIMIENTO = 0.5     # PA consumidos por cada orden de movimiento o ataque
+C_ORO_FORT = 100.0        # costo en oro de fortificar una provincia (Seccion 2.2)
+C_PA_FORT = 0.5           # costo en PA de fortificar una provincia
+SAQUEO_BOTIN = 0.5        # % de la actividad comercial obtenido como botin al saquear (Evento E10)
+FACTOR_TERRENO_ATAQUE = {"Plano": 1.0}    # θ_terreno,atacante: multiplicador por terreno del atacante (2.1)
+FACTOR_TERRENO_DEFENSA = {"Plano": 1.0}   # θ_terreno,defensor: multiplicador por terreno del defensor (2.1)
+
 
 # CLASE IMPERIO
 
@@ -60,6 +76,7 @@ class Imperio:
 
         self.provincias = []                 # Lista de objetos Provincia que pertenecen a este imperio
         self.unidades_totales = 0            # (subsistema Unidades)
+        self.ordenes_movimiento = []         # Lista_Movimientos(t): órdenes encoladas durante el turno, se resuelven al cierre (Parte 6)
 
         # tasas fijadas por decreto del imperio Ecuación 1.1
         self.tasa_impuesto = 10.0            # % (τ_imp), aplicado una vez al año
@@ -647,6 +664,256 @@ def mostrar_relaciones(diplomacia, imperios):
         print(f"    {protegido.nombre} esta protegido por {protector.nombre} (paga tributo)")
 
 
+
+# PARTE 6: MOVIMIENTO Y COMBATE
+
+def generar_x_aleatoria():
+    """Sección 2.3: X = 0.85 + u · (1.15 − 0.85), con u ~ U(0,1). Es la variable
+    aleatoria de "niebla de guerra", generada independiente para cada bando y ronda."""
+    return X_MIN + random.random() * (X_MAX - X_MIN)
+
+
+def provincias_vecinas(mapa, provincia):
+    """Devuelve las provincias adyacentes a `provincia` (4 direcciones: arriba,
+    abajo, izquierda y derecha dentro de la matriz)."""
+    filas = len(mapa)
+    columnas = len(mapa[0])
+    fila, col = provincia.posicion
+    vecinas = []
+    for df, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        nf, nc = fila + df, col + dc
+        if 0 <= nf < filas and 0 <= nc < columnas:
+            vecinas.append(mapa[nf][nc])
+    return vecinas
+
+
+def resolver_combate(cant_atacante, cant_defensor, provincia,
+                     terreno_atacante=1.0, terreno_defensor=1.0):
+    """Sección 2 completa. Combate ronda a ronda (Ley Cuadrática de Lanchester):
+      - PE_atacante = A(t) · α_ataque · θ_terreno,atacante · X_A        (2.1)
+      - PE_defensor = D(t) · α_defensa · θ_terreno,defensor · X_D       (2.1)
+      - A(τ+1) = max(0, A(τ) − β · PE_defensor)                        (2.4)
+      - D(τ+1) = max(0, D(τ) − α · PE_atacante · (1 − φ_fort · Fort_i)) (2.4)
+    La fortificación (φ_fort = 50%) reduce las bajas del defensor a la mitad.
+    Se detiene cuando un bando es aniquilado o al llegar a MAX_RONDAS_COMBATE.
+    Devuelve el resultado según la Sección 2.5 y el registro de cada ronda."""
+    a = float(cant_atacante)
+    d = float(cant_defensor)
+    fort = PHI_FORT if provincia.fortificacion else 0.0
+    registro = []
+    ronda = 0
+    while a > 0 and d > 0 and ronda < MAX_RONDAS_COMBATE:
+        ronda += 1
+        x_a = generar_x_aleatoria()
+        x_d = generar_x_aleatoria()
+        pe_atacante = a * ALPHA_ATAQUE * terreno_atacante * x_a
+        pe_defensor = d * ALPHA_DEFENSA * terreno_defensor * x_d
+        bajas_atacante = BETA_LETALIDAD * pe_defensor
+        bajas_defensor = ALPHA_LETALIDAD * pe_atacante * (1.0 - fort)
+        a = max(0.0, a - bajas_atacante)
+        d = max(0.0, d - bajas_defensor)
+        registro.append({
+            "ronda": ronda, "x_a": x_a, "x_d": x_d,
+            "pe_atacante": pe_atacante, "pe_defensor": pe_defensor,
+            "bajas_atacante": bajas_atacante, "bajas_defensor": bajas_defensor,
+            "a": a, "d": d,
+        })
+
+    # Sección 2.5: determinación del resultado
+    if d == 0 and a > 0:
+        resultado = "VICTORIA_ATACANTE"      # E9: conquista de provincia
+    elif a == 0 and d > 0:
+        resultado = "VICTORIA_DEFENSOR"      # el atacante se repliega
+    elif a == 0 and d == 0:
+        resultado = "EMPATE"
+    else:
+        resultado = "SIN_RESOLUCION"         # se agotaron las rondas sin vencedor
+
+    return {
+        "resultado": resultado,
+        "atacantes_supervivientes": int(round(a)),
+        "defensores_supervivientes": int(round(d)),
+        "rondas": registro,
+    }
+
+
+def atacar(mapa, imperio_atacante, imperio_defensor, origen, destino, cantidad):
+    """Resuelve el ataque a una provincia enemiga (Eventos E7-E9, Sección 2).
+    Aplica el recuento de bajas y, si gana el atacante, conquista la provincia
+    (E9). En caso de derrota o empate, los supervivientes del atacante se
+    repliegan al origen. Devuelve el reporte del combate."""
+    defensores = destino.u_prov
+    terreno_atacante = FACTOR_TERRENO_ATAQUE.get(origen.terreno, 1.0)
+    terreno_defensor = FACTOR_TERRENO_DEFENSA.get(destino.terreno, 1.0)
+
+    reporte = resolver_combate(cantidad, defensores, destino,
+                               terreno_atacante, terreno_defensor)
+
+    # Bajas del atacante: salen todas las tropas; si no hay conquista vuelven las vivas
+    imperio_atacante.unidades_totales -= cantidad
+    origen.u_prov -= cantidad
+
+    # Bajas del defensor
+    imperio_defensor.unidades_totales -= defensores
+    destino.u_prov = 0
+
+    reporte["conquistada"] = False
+    if reporte["resultado"] == "VICTORIA_ATACANTE":
+        reporte["conquistada"] = True
+        # E9: la provincia cambia de dueño y recibe a los supervivientes del atacante
+        imperio_atacante.unidades_totales += reporte["atacantes_supervivientes"]
+        destino.u_prov = reporte["atacantes_supervivientes"]
+        destino.tep = 0
+        imperio_defensor.provincias.remove(destino)
+        imperio_atacante.agregar_provincia(destino)
+    else:
+        # El atacante se repliega y el defensor conserva la provincia con sus vivos
+        imperio_atacante.unidades_totales += reporte["atacantes_supervivientes"]
+        origen.u_prov += reporte["atacantes_supervivientes"]
+        imperio_defensor.unidades_totales += reporte["defensores_supervivientes"]
+        destino.u_prov = reporte["defensores_supervivientes"]
+
+    reporte["ok"] = True
+    reporte["tipo"] = "combate"
+    reporte["origen"] = origen.id
+    reporte["destino"] = destino.id
+    reporte["atacantes_iniciales"] = cantidad
+    reporte["defensores_iniciales"] = defensores
+    return reporte
+
+
+def ordenar_movimiento(mapa, diplomacia, imperio, origen, destino, cantidad):
+    """Encola una orden de movimiento/ataque para el cierre del turno (la
+    "Lista_Movimientos(t)" del pseudocódigo Cierre_De_Turno). Solo valida y
+    consume los PA en este momento; el traslado o el combate se resuelven en
+    resolver_ordenes_movimiento cuando el turno cierra."""
+    if origen.dueño is not imperio:
+        return {"ok": False, "tipo": "error", "motivo": "la provincia de origen no es tuya"}
+    if destino not in provincias_vecinas(mapa, origen):
+        return {"ok": False, "tipo": "error", "motivo": "las provincias no son vecinas"}
+    if cantidad <= 0:
+        return {"ok": False, "tipo": "error", "motivo": "la cantidad debe ser positiva"}
+    if cantidad > origen.u_prov:
+        return {"ok": False, "tipo": "error",
+                "motivo": f"solo hay {origen.u_prov} soldados en la provincia de origen"}
+    if imperio.puntos_accion_actual < C_PA_MOVIMIENTO:
+        return {"ok": False, "tipo": "error", "motivo": "puntos de acción insuficientes"}
+
+    # Destino enemigo: solo se puede ordenar el ataque estando en guerra
+    if destino.dueño is not imperio and destino.dueño is not None:
+        if not diplomacia.es_legal_atacar(imperio, destino.dueño):
+            return {"ok": False, "tipo": "error",
+                    "motivo": f"no se puede atacar a {destino.dueño.nombre}: solo se ataca en guerra"}
+
+    imperio.puntos_accion_actual -= C_PA_MOVIMIENTO
+    imperio.ordenes_movimiento.append({
+        "origen": origen,
+        "destino": destino,
+        "cantidad": cantidad,
+    })
+    return {"ok": True, "tipo": "orden",
+            "mensaje": f"orden encolada: {cantidad} tropas de P{origen.id:02d} a P{destino.id:02d} "
+                       f"(se resolverá al cierre del turno)"}
+
+
+def resolver_ordenes_movimiento(mapa, diplomacia, imperios):
+    """Pseudocódigo paso 1 del Cierre_De_Turno: resuelve las órdenes de movimiento
+    de todos los imperios una por una."""
+    for imperio in imperios:
+        while imperio.ordenes_movimiento:
+            orden = imperio.ordenes_movimiento.pop(0)
+            origen, destino, cantidad = orden["origen"], orden["destino"], orden["cantidad"]
+
+            # Revalidación en el momento de ejecutar la orden
+            if origen.dueño is not imperio:
+                print(f"  [!] Orden cancelada: P{origen.id:02d} ya no es de {imperio.nombre}")
+                continue
+            if cantidad > origen.u_prov:
+                print(f"  [!] Orden cancelada: quedan solo {origen.u_prov} tropas en P{origen.id:02d}")
+                continue
+            if destino not in provincias_vecinas(mapa, origen):
+                print(f"  [!] Orden cancelada: P{origen.id:02d} y P{destino.id:02d} ya no son vecinas")
+                continue
+
+            # Destino enemigo: requiere guerra vigente -> combate
+            if destino.dueño is not imperio and destino.dueño is not None:
+                if not diplomacia.es_legal_atacar(imperio, destino.dueño):
+                    print(f"  [!] Orden cancelada: ya no se puede atacar a P{destino.id:02d} "
+                          f"(no hay guerra con {destino.dueño.nombre})")
+                    continue
+                reporte = atacar(mapa, imperio, destino.dueño, origen, destino, cantidad)
+                mostrar_reporte_combate(reporte)
+                if reporte["resultado"] == "VICTORIA_ATACANTE" and imperio.nombre == "Jugador":
+                    decision = input("  Provincia conquistada. ¿Quieres saquearla? (s/n): ").strip().lower()
+                    if decision == "s":
+                        res_saqueo = saquear(imperio, destino)
+                        print(f"  Saqueo (E10): +{res_saqueo['botin']:.1f} oro de botín "
+                              f"y -10% población en P{destino.id:02d}")
+                continue
+
+            # Destino propio o libre: desplazamiento simple
+            origen.u_prov -= cantidad
+            destino.u_prov += cantidad
+            print(f"  Tropas movidas de P{origen.id:02d} a P{destino.id:02d} ({cantidad} soldados)")
+
+
+def fortificar_provincia(imperio, provincia):
+    """Sección 2.2: construye la fortificación de la provincia (una sola vez).
+    La fortificación reduce a la mitad las bajas del defensor (φ_fort = 50%, Ecuación 2.4)."""
+    if provincia.dueño is not imperio:
+        return {"ok": False, "motivo": "la provincia no pertenece a este imperio"}
+    if provincia.bloqueada_baja_felicidad:
+        return {"ok": False, "motivo": "provincia bloqueada por baja felicidad (Sección 4.2)"}
+    if provincia.fortificacion:
+        return {"ok": False, "motivo": "la provincia ya está fortificada"}
+    if imperio.tesoro < C_ORO_FORT:
+        return {"ok": False, "motivo": f"tesoro insuficiente (se necesitan {C_ORO_FORT:.1f} oro)"}
+    if imperio.puntos_accion_actual < C_PA_FORT:
+        return {"ok": False, "motivo": "puntos de acción insuficientes"}
+
+    imperio.tesoro -= C_ORO_FORT
+    imperio.puntos_accion_actual -= C_PA_FORT
+    provincia.fortificacion = True
+    return {"ok": True, "costo_oro": C_ORO_FORT, "costo_pa": C_PA_FORT}
+
+
+def saquear(imperio, provincia):
+    """Evento E10: saqueo de una provincia recién conquistada. El imperio obtiene
+    un botín en oro proporcional a la actividad comercial de la provincia, la
+    provincia pierde parte de su población y queda marcada con saqueo activo
+    (que penalizará la felicidad en el próximo cierre, Ecuación 1.2)."""
+    botin = SAQUEO_BOTIN * provincia.ac
+    imperio.tesoro += botin
+    provincia.poblacion = int(provincia.poblacion * 0.9)
+    provincia.saqueo = True
+    return {"ok": True, "botin": botin}
+
+
+def recalcular_unidades_totales(imperios):
+    """Recomputa imperio.unidades_totales a partir de las guarniciones (u_prov).
+    Se usa por el comando de depuración `tropas` para mantener el contador al día."""
+    for imperio in imperios:
+        imperio.unidades_totales = sum(p.u_prov for p in imperio.provincias)
+
+
+def mostrar_reporte_combate(reporte):
+    """Imprime el detalle de rondas y el resultado de un combate ya resuelto."""
+    print(f"  Combate en P{reporte['destino']:02d}: {reporte['atacantes_iniciales']} atacantes "
+          f"vs {reporte['defensores_iniciales']} defensores")
+    for r in reporte["rondas"]:
+        print(f"    Ronda {r['ronda']}: X_A={r['x_a']:.2f} X_D={r['x_d']:.2f} | "
+              f"bajas ataque={r['bajas_atacante']:.1f} bajas def={r['bajas_defensor']:.1f} | "
+              f"A={r['a']:.1f} D={r['d']:.1f}")
+    if reporte["resultado"] == "VICTORIA_ATACANTE":
+        print(f"  -> VICTORIA DEL ATACANTE (E9): provincia conquistada, "
+              f"sobreviven {reporte['atacantes_supervivientes']} atacantes")
+    elif reporte["resultado"] == "VICTORIA_DEFENSOR":
+        print(f"  -> VICTORIA DEL DEFENSOR: el atacante se repliega, "
+              f"sobreviven {reporte['defensores_supervivientes']} defensores")
+    else:
+        print(f"  -> {reporte['resultado']}: la provincia no cambia de dueño")
+
+
 def main():
     # variables de control de la partida
     turno = 1
@@ -679,9 +946,11 @@ def main():
 
     # Bucle principal de turnos
     while not partida_terminada:
+        pendientes = len(imperio_jugador.ordenes_movimiento)
         print(f"Partida en turno {turno} | {imperio_jugador.nombre}: "
               f"tesoro={imperio_jugador.tesoro:.1f} oro, "
               f"PA={imperio_jugador.puntos_accion_actual}/{imperio_jugador.puntos_accion_max} | "
+              f"movimientos pendientes={pendientes} | "
               f"Haga sus movimientos")
         mostrar_mapa(mapa)
 
@@ -689,8 +958,9 @@ def main():
         #
 
         respuesta = input("ENTER avanzar | 'salir' | 'reclutar <id> <cant>' | 'torre <id>' | "
+                          "'mover <origen> <destino> <cant>' | 'fortificar <id>' | "
                           "'guerra' | 'paz' | 'alianza' | 'romper' | 'proteger' | 'relaciones' | "
-                          "'fel <id> <0-100>' | 'estado': ")
+                          "'fel <id> <0-100>' | 'tropas <id> <cant>' | 'estado': ")
         respuesta = respuesta.strip().lower()
 
         if respuesta == "salir":
@@ -779,6 +1049,61 @@ def main():
             except (ValueError, IndexError):
                 print("  Uso: torre <id_provincia>")
             continue
+        elif respuesta.startswith("mover "):
+            # Parte 6: encola una orden de movimiento/ataque; se resuelve al cierre del turno.
+            partes = respuesta.split()
+            try:
+                id_origen = int(partes[1])
+                id_destino = int(partes[2])
+                cantidad = int(partes[3])
+                origen = buscar_provincia(mapa, id_origen)
+                destino = buscar_provincia(mapa, id_destino)
+                if origen is None or destino is None:
+                    print("  No existe la provincia indicada")
+                else:
+                    res = ordenar_movimiento(mapa, diplomacia, imperio_jugador, origen, destino, cantidad)
+                    if not res["ok"]:
+                        print(f"  No se pudo ordenar el movimiento: {res['motivo']}")
+                    else:
+                        print(f"  {res['mensaje']} (-{C_PA_MOVIMIENTO:.1f} PA)")
+            except (ValueError, IndexError):
+                print("  Uso: mover <origen> <destino> <cantidad>")
+            continue
+        elif respuesta.startswith("fortificar "):
+            # Parte 6: fortifica una provincia propia (Sección 2.2).
+            partes = respuesta.split()
+            try:
+                id_prov = int(partes[1])
+                provincia = buscar_provincia(mapa, id_prov)
+                if provincia is None:
+                    print(f"  No existe la provincia {id_prov:02d}")
+                else:
+                    res = fortificar_provincia(imperio_jugador, provincia)
+                    if res["ok"]:
+                        print(f"  Provincia P{id_prov:02d} fortificada "
+                              f"(-{res['costo_oro']:.1f} oro, -{res['costo_pa']:.1f} PA)")
+                    else:
+                        print(f"  No se pudo fortificar: {res['motivo']}")
+            except (ValueError, IndexError):
+                print("  Uso: fortificar <id_provincia>")
+            continue
+        elif respuesta.startswith("tropas "):
+            # Comando de depuración de la Parte 6: fija la guarnición de una provincia
+            # para poder probar combates sin depender del reclutamiento normal.
+            partes = respuesta.split()
+            try:
+                id_prov = int(partes[1])
+                cantidad = int(partes[2])
+                provincia = buscar_provincia(mapa, id_prov)
+                if provincia is None:
+                    print(f"  No existe la provincia {id_prov:02d}")
+                else:
+                    provincia.u_prov = max(0, cantidad)
+                    recalcular_unidades_totales(imperios)
+                    print(f"  Guarnición de P{id_prov:02d} fijada a {provincia.u_prov} soldados (depuración)")
+            except (ValueError, IndexError):
+                print("  Uso: tropas <id_provincia> <cantidad>")
+            continue
         elif respuesta.startswith("fel "):
             # Comando para forzar la felicidad de una provincia y probar que funcione. 
             # para poder probar el disparo de rebelión (4.1) y el bloqueo (4.2).
@@ -805,10 +1130,19 @@ def main():
                     print(f"  P{provincia.id:02d} ({dueño}): pob={provincia.poblacion:,.0f} "
                           f"fel={provincia.felicidad:.1f} reb={provincia.rebelion} "
                           f"bloq={provincia.bloqueada_baja_felicidad} "
-                          f"soldados={provincia.u_prov} torre={'SI' if provincia.torre_vigilancia else 'no'}")
+                          f"soldados={provincia.u_prov} "
+                          f"torre={'SI' if provincia.torre_vigilancia else 'no'} "
+                          f"fort={'SI' if provincia.fortificacion else 'no'}")
             continue
 
-        # 1. Crecimiento de poblacion usa la felicidad del 
+        # 1. Movimiento y combate (paso 1 del pseudocódigo Cierre_De_Turno):
+        #    se resuelven las órdenes de movimiento/ataque encoladas durante el turno.
+        if any(imperio.ordenes_movimiento for imperio in imperios):
+            print(f"--- Movimiento y combate del turno {turno} ---")
+            resolver_ordenes_movimiento(mapa, diplomacia, imperios)
+            print("-------------------------------------------\n")
+
+        # 2. Crecimiento de poblacion usa la felicidad del
         #    turno anterior y actualiza la base imponible que verá la economia.
         print(f"\n--- Crecimiento de población del turno {turno} ---")
         for imperio in imperios:
@@ -818,7 +1152,7 @@ def main():
             print(f"  [{imperio.nombre}] población total: {antes:,.0f} -> {despues:,.0f}")
         print("-------------------------------------------\n")
 
-        # 2. Cierre económico del turno que acaba de terminar.
+        # 3. Cierre económico del turno que acaba de terminar.
         #    Antes de recaudar se calculan los tributos diplomáticos, que
         #    dependen de la actividad comercial ya actualizada de cada imperio.
         for imperio in imperios:
@@ -832,9 +1166,9 @@ def main():
             mostrar_resumen_economico(imperio, resumen)
         print("-------------------------------------------\n")
 
-        # 3. Cierre de felicidad: usa los impuestos y
-        #    saqueos YA aplicados en el cierre económico, evalúa la rebelión (4.1)
-        #    y actualiza el bloqueo de reclutamiento/construcción (4.2).
+        # 4. Cierre de felicidad: usa los impuestos y
+        #    saqueos YA aplicados en el cierre económico, evalúa la rebelión 
+        #    y actualiza el bloqueo de reclutamiento/construcción .
         print(f"--- Cierre de felicidad del turno {turno} ---")
         for imperio in imperios:
             resumenes = procesar_cierre_felicidad(imperio)
