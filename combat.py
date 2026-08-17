@@ -93,6 +93,7 @@ def atacar(mapa, imperio_atacante, imperio_defensor, origen, destino, cantidad):
 
     reporte["conquistada"] = False
     reporte["rey_capturado"] = False
+    reporte["imperio_perdedor"] = None
     if reporte["resultado"] == "VICTORIA_ATACANTE":
         reporte["conquistada"] = True
         # E9: la provincia cambia de duenio y recibe a los supervivientes del atacante
@@ -106,6 +107,7 @@ def atacar(mapa, imperio_atacante, imperio_defensor, origen, destino, cantidad):
         # el rey queda capturado y todas las provincias restantes pasan al atacante.
         if destino is imperio_defensor.ubicacion_rey:
             reporte["rey_capturado"] = True
+            reporte["imperio_perdedor"] = imperio_defensor
             imperio_defensor.rey_capturado = True
             provincias_restantes = list(imperio_defensor.provincias)
             for prov in provincias_restantes:
@@ -254,8 +256,10 @@ def mostrar_reporte_combate(reporte):
         print(f"  -> VICTORIA DEL ATACANTE (E9): provincia conquistada, "
               f"sobreviven {reporte['atacantes_supervivientes']} atacantes")
         if reporte.get("rey_capturado"):
-            print(f"  -> CAPTURA DEL REY (4.5): el rey enemigo fue capturado, "
-                  f"todas sus provincias restantes cambian de duenio")
+            perdedor = reporte["imperio_perdedor"]
+            print(f"  -> CAPTURA DEL REY (4.5): el rey de {perdedor.nombre} fue capturado, "
+                  f"todas sus provincias pasan al atacante")
+            print(f"  >>> {perdedor.nombre} HA SIDO DERROTADO <<<")
     elif reporte["resultado"] == "VICTORIA_DEFENSOR":
         print(f"  -> VICTORIA DEL DEFENSOR: el atacante se repliega, "
               f"sobreviven {reporte['defensores_supervivientes']} defensores")

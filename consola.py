@@ -25,6 +25,18 @@ from ia import IA_CPU
 ANCHO = 58
 
 
+def verificar_fin_partida(imperios):
+    """Verifica si la partida termino por captura del rey o eliminacion total.
+    Devuelve el ganador o None si la partida continua."""
+    eliminados = [i for i in imperios if i.rey_capturado or len(i.provincias) == 0]
+    vivos = [i for i in imperios if not i.rey_capturado and len(i.provincias) > 0]
+    if not vivos:
+        return None
+    if len(vivos) == 1 and len(imperios) > 1:
+        return vivos[0]
+    return None
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #  UTILIDADES DE CONSOLA
 # ═══════════════════════════════════════════════════════════════════════
@@ -91,7 +103,7 @@ def elegir(opciones, titulo, subtitulo="", lineas_extra=None):
 
 
 def mostrar_mensaje(texto, tipo="info"):
-    """Muestra un mensaje con pausa. Error: 1.5s, exito/info: 1s."""
+    """Muestra un mensaje y pausa hasta que el usuario presione ENTER."""
     limpiar()
     borde = "=" * ANCHO
     print()
@@ -103,7 +115,7 @@ def mostrar_mensaje(texto, tipo="info"):
     else:
         print(f"  {texto}")
     print(f"  {borde}")
-    time.sleep(1.0 if tipo == "error" else 1.0)
+    input("  Presione ENTER para continuar...")
 
 
 def leer_numero(prompt):
@@ -506,6 +518,18 @@ def main():
                     mostrar_mensaje(
                         f"IA ejecuto: {', '.join(ia.acciones)}", "info")
                 cierre_de_turno(turno, imperios, mapa, diplomacia, lef)
+                ganador = verificar_fin_partida(imperios)
+                if ganador:
+                    limpiar()
+                    print("\n  ═══════════════════════════════════════")
+                    if ganador == imperio_jugador:
+                        print(f"  VICTORIA: {ganador.nombre} ha ganado la partida!")
+                    else:
+                        print(f"  DERROTA: {ganador.nombre} ha conquistado el mapa")
+                    print("  ═══════════════════════════════════════\n")
+                    mostrar_mapa_por_dueño(mapa)
+                    input("  Presione ENTER para finalizar...")
+                    partida_terminada = True
                 turno += 1
             case 14:
                 accion_tropas_debug(mapa, imperios)
