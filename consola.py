@@ -102,7 +102,7 @@ def mostrar_mensaje(texto, tipo="info"):
     else:
         print(f"  {texto}")
     print(f"  {borde}")
-    time.sleep(1.5 if tipo == "error" else 1.0)
+    time.sleep(1.0 if tipo == "error" else 1.0)
 
 
 def leer_numero(prompt):
@@ -469,39 +469,42 @@ def main():
             continue
 
         # Despacho de acciones
-        if idx == 0:
-            accion_reclutar(mapa, imperio_jugador)
-        elif idx == 1:
-            accion_torre(mapa, imperio_jugador)
-        elif idx == 2:
-            accion_mover(mapa, diplomacia, imperio_jugador)
-        elif idx == 3:
-            accion_fortificar(mapa, imperio_jugador)
-        elif idx == 4:
-            accion_saquear(mapa, imperio_jugador, lef, turno)
-        elif idx == 5:
-            accion_guerra(imperios, imperio_jugador, diplomacia)
-        elif idx == 6:
-            accion_paz(imperios, imperio_jugador, diplomacia)
-        elif idx == 7:
-            accion_alianza(imperios, imperio_jugador, diplomacia)
-        elif idx == 8:
-            accion_romper(imperios, imperio_jugador, diplomacia)
-        elif idx == 9:
-            accion_proteger(imperios, imperio_jugador, diplomacia)
-        elif idx == 10:
-            accion_relaciones(imperios, diplomacia)
-        elif idx == 11:
-            accion_ver_mapa(mapa)
-        elif idx == 12:
-            accion_estado(mapa)
-        elif idx == 13:
-            cierre_de_turno(turno, imperios, mapa, diplomacia, lef)
-            turno += 1
-        elif idx == 14:
-            accion_tropas_debug(mapa, imperios)
-        elif idx == 15:
-            accion_fel_debug(mapa)
+        match idx:
+            case 0:
+                accion_reclutar(mapa, imperio_jugador)
+            case 1:
+                accion_torre(mapa, imperio_jugador)
+            case 2:
+                accion_mover(mapa, diplomacia, imperio_jugador)
+            case 3:
+                accion_fortificar(mapa, imperio_jugador)
+            case 4:
+                accion_saquear(mapa, imperio_jugador, lef, turno)
+            case 5:
+                accion_guerra(imperios, imperio_jugador, diplomacia)
+            case 6:
+                accion_paz(imperios, imperio_jugador, diplomacia)
+            case 7:
+                accion_alianza(imperios, imperio_jugador, diplomacia)
+            case 8:
+                accion_romper(imperios, imperio_jugador, diplomacia)
+            case 9:
+                accion_proteger(imperios, imperio_jugador, diplomacia)
+            case 10:
+                accion_relaciones(imperios, diplomacia)
+            case 11:
+                accion_ver_mapa(mapa)
+            case 12:
+                accion_estado(mapa)
+            case 13:
+                cierre_de_turno(turno, imperios, mapa, diplomacia, lef)
+                turno += 1
+            case 14:
+                accion_tropas_debug(mapa, imperios)
+            case 15:
+                accion_fel_debug(mapa)
+            case _:
+                pass
 
     limpiar()
     print("\n  === FIN DE LA PARTIDA ===\n")
