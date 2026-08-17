@@ -19,6 +19,7 @@ from constantes import C_PA_SAQUEO, DURACION_SAQUEO
 from combat import ordenar_movimiento, fortificar_provincia, saquear, C_PA_MOVIMIENTO
 from lef import LEF
 from turno import cierre_de_turno
+from ia import IA_CPU
 
 
 ANCHO = 58
@@ -411,6 +412,9 @@ def main():
     # LEF: Lista de Eventos Futuros (Parte 7)
     lef = LEF()
 
+    # IA de la CPU
+    ia = IA_CPU()
+
     # Reparto inicial de provincias entre los dos imperios de prueba (incluye ubicacion del rey)
     asignar_provincias_iniciales(mapa, imperios)
 
@@ -497,6 +501,10 @@ def main():
             case 12:
                 accion_estado(mapa)
             case 13:
+                ia.planificar_turno(imperio_ia, mapa, diplomacia, imperios)
+                if ia.acciones:
+                    mostrar_mensaje(
+                        f"IA ejecuto: {', '.join(ia.acciones)}", "info")
                 cierre_de_turno(turno, imperios, mapa, diplomacia, lef)
                 turno += 1
             case 14:

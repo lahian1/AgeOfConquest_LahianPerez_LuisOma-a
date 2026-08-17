@@ -194,7 +194,17 @@ def resolver_ordenes_movimiento(mapa, diplomacia, imperios):
                 mostrar_reporte_combate(reporte)
                 continue
 
-            # Destino propio o libre: desplazamiento simple
+            if destino.dueño is None:
+                # Destino libre: se conquista sin combate
+                origen.u_prov -= cantidad
+                destino.u_prov += cantidad
+                destino.dueño = imperio
+                imperio.agregar_provincia(destino)
+                print(f"  Tropas movidas de P{origen.id:02d} a P{destino.id:02d} ({cantidad} soldados) "
+                      f"-> provincia conquistada (E9)")
+                continue
+
+            # Destino propio: desplazamiento simple
             origen.u_prov -= cantidad
             destino.u_prov += cantidad
             print(f"  Tropas movidas de P{origen.id:02d} a P{destino.id:02d} ({cantidad} soldados)")

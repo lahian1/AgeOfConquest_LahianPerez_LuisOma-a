@@ -61,25 +61,61 @@ def crear_mapa(filas, columnas):
     return mapa
 
 
+def _obtener_adyacentes(mapa, fila, columna):
+    """Devuelve las posiciones ortogonales validas alrededor de (fila, columna)."""
+    filas = len(mapa)
+    columnas = len(mapa[0])
+    adyacentes = []
+    for df, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        nf, nc = fila + df, columna + dc
+        if 0 <= nf < filas and 0 <= nc < columnas:
+            adyacentes.append((nf, nc))
+    return adyacentes
+
+
+def _obtener_adyacentes_con_diagonales(mapa, fila, columna):
+    """Devuelve las 8 posiciones validas alrededor de (fila, columna) incluyendo diagonales."""
+    filas = len(mapa)
+    columnas = len(mapa[0])
+    adyacentes = []
+    for df in (-1, 0, 1):
+        for dc in (-1, 0, 1):
+            if df == 0 and dc == 0:
+                continue
+            nf, nc = fila + df, columna + dc
+            if 0 <= nf < filas and 0 <= nc < columnas:
+                adyacentes.append((nf, nc))
+    return adyacentes
+
+
 def asignar_provincias_iniciales(mapa, imperios):
     """
-    Reparte el mapa entre los imperios de prueba dividiendolo por columnas
-    (imperio 0 se queda con la mitad izquierda, imperio 1 con la mitad derecha).
-    Ademas, asigna a cada imperio la primera provincia recibida como la
-    ubicacion inicial de su rey.
-    Es una asignacion provisional solo para poder probar el subsistema Economia
-    en la Parte 2; el reparto real de inicio de partida lo vemos mas adelante lahian.
+    Asigna aleatoriamente una provincia inicial (provincia del rey) a cada imperio.
+    La provincia del rey se elige al azar entre las casillas disponibles.
+    Las casillas colindantes a una provincia ya elegida quedan inhabilitadas
+    para los siguientes imperios. Se repite hasta que cada imperio tenga su
+    provincia y su rey ubicado.
     """
+    filas = len(mapa)
     columnas = len(mapa[0])
-    mitad = columnas // 2
-    for fila in mapa:
-        for provincia in fila:
-            _, columna = provincia.posicion
-            if columna < mitad:
-                imperios[0].agregar_provincia(provincia)
-            else:
-                imperios[1].agregar_provincia(provincia)
+    total = filas * columnas
+
+    disponibles = set(range(total))
+    inhabilitadas = set()
 
     for imperio in imperios:
-        if imperio.provincias:
-            imperio.ubicacion_rey = imperio.provincias[0]
+        opciones = list(disponibles - inhabilitadas)
+        elegido = random.choice(opciones)
+        disponibles.discard(elegido)
+
+        fila = elegido // columnas
+        columna = elegido % columnas
+        provincia = mapa[fila][columna]
+
+        imperio.agregar_provincia(provincia)
+        imperio.ubicacion_rey = provincia
+
+        for af, ac in _obtener_adyacentes_con_diagonales(mapa, fila, columna):
+            idx = af * columnas + ac
+            if idx in disponibles:
+                inhabilitadas.add(idx)
