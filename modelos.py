@@ -163,9 +163,6 @@ class Diplomacia:
 
 # HELPERS
 
-def otro_imperio(imperios, imperio):
-    """Devuelve el imperio rival (el que no es `imperio`) de la lista."""
-    for otro in imperios:
-        if otro is not imperio:
-            return otro
-    return None
+def buscar_rivales(imperios, imperio):
+    """Devuelve la lista de todos los imperios que no son `imperio`."""
+    return [o for o in imperios if o is not imperio]

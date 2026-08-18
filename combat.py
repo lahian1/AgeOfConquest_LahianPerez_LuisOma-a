@@ -167,10 +167,12 @@ def ordenar_movimiento(mapa, diplomacia, imperio, origen, destino, cantidad):
                        f"(se resolvera al cierre del turno)"}
 
 
-def resolver_ordenes_movimiento(mapa, diplomacia, imperios):
+def resolver_ordenes_movimiento(mapa, diplomacia, imperios, orden=None):
     """Pseudocodigo paso 1 del Cierre_De_Turno: resuelve las ordenes de movimiento
-    de todos los imperios una por una."""
-    for imperio in imperios:
+    de todos los imperios una por una, en el orden indicado."""
+    if orden is None:
+        orden = imperios
+    for imperio in orden:
         while imperio.ordenes_movimiento:
             orden = imperio.ordenes_movimiento.pop(0)
             origen, destino, cantidad = orden["origen"], orden["destino"], orden["cantidad"]

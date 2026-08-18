@@ -51,11 +51,14 @@ def _en_guerra(imperio, diplomacia, imperios):
     return False
 
 
-def _rival(imperio, imperios):
-    for o in imperios:
-        if o is not imperio:
-            return o
-    return None
+def _rivales(imperio, imperios):
+    """Devuelve la lista de todos los imperios que no son `imperio`."""
+    return [o for o in imperios if o is not imperio]
+
+
+def _en_guerra_con(imperio, rival, diplomacia):
+    """Devuelve True si imperio y rival estan en guerra."""
+    return diplomacia.estado(imperio, rival) == "guerra"
 
 
 def _calc_recluta(prov, imperio):
@@ -80,7 +83,7 @@ class IA_CPU:
         self._expandidos.clear()
         self._mapa = mapa
         self._dipl = diplomacia
-        riv = _rival(imperio, imperios)
+        rivales = _rivales(imperio, imperios)
         expansiones = 0
 
         while imperio.puntos_accion_actual > 0:
@@ -94,7 +97,7 @@ class IA_CPU:
                 continue
 
             # 2. En guerra con enemigos adyacentes -> atacar
-            if guerra and pares and self._atacar(imperio, pares, riv):
+            if guerra and pares and self._atacar(imperio, pares, rivales):
                 continue
 
             # 3. Expandir (max 2 por turno)
@@ -108,7 +111,7 @@ class IA_CPU:
                 continue
 
             # 5. Diplomacia
-            if self._decidir_diplomacia(imperio, mapa, riv, guerra):
+            if self._decidir_diplomacia(imperio, mapa, rivales, diplomacia, guerra):
                 continue
 
             # 6. Torre
@@ -131,9 +134,10 @@ class IA_CPU:
                         return self._ejecutar("fortificar", imperio, p)
         return False
 
-    def _atacar(self, imperio, pares, riv):
+    def _atacar(self, imperio, pares, rivales):
         mejor = None
         mejor_dif = float("inf")
+        reyes_rivales = {r.ubicacion_rey for r in rivales if r.ubicacion_rey}
         for prop, enem in pares:
             if enem in self._expandidos:
                 continue
@@ -148,7 +152,7 @@ class IA_CPU:
             return False
         origen, destino = mejor
         cant = self._disp(origen)
-        if destino is not riv.ubicacion_rey:
+        if destino not in reyes_rivales:
             cant = max(2, cant // 2)
         resultado = self._ejecutar("mover", imperio, origen, destino, cant)
         if resultado:
@@ -200,21 +204,21 @@ class IA_CPU:
             return False
         return self._ejecutar("reclutar", imperio, mejor, cant)
 
-    def _decidir_diplomacia(self, imperio, mapa, riv, guerra):
-        if riv is None:
-            return False
-        if guerra:
-            fuerza = sum(p.u_prov for p in imperio.provincias)
-            fuerza_r = sum(p.u_prov for p in riv.provincias)
-            if fuerza < fuerza_r:
-                return self._ejecutar("paz", imperio, riv)
-            return False
-        pares = _pares_enemigos(imperio, mapa)
-        if not pares:
+    def _decidir_diplomacia(self, imperio, mapa, rivales, diplomacia, guerra):
+        if not rivales:
             return False
         fuerza = sum(p.u_prov for p in imperio.provincias)
-        if fuerza >= 20 and imperio.tesoro >= 200:
-            return self._ejecutar("guerra", imperio, riv)
+        if guerra:
+            for rival in rivales:
+                if _en_guerra_con(imperio, rival, diplomacia):
+                    fuerza_r = sum(p.u_prov for p in rival.provincias)
+                    if fuerza < fuerza_r:
+                        return self._ejecutar("paz", imperio, rival)
+            return False
+        for rival in rivales:
+            pares_con_rival = [(p, e) for p, e in _pares_enemigos(imperio, mapa) if e.dueño is rival]
+            if pares_con_rival and fuerza >= 20 and imperio.tesoro >= 200:
+                return self._ejecutar("guerra", imperio, rival)
         return False
 
     def _torre(self, imperio):

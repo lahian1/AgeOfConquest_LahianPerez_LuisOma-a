@@ -50,10 +50,11 @@ def ejecutar_eventos_lef(lef, turno, imperios, mapa):
     print("-------------------------------------------\n")
 
 
-def cierre_de_turno(turno, imperios, mapa, diplomacia, lef):
+def cierre_de_turno(turno, imperios, mapa, diplomacia, lef, orden_resolucion=None):
     """Ejecuta los pasos del cierre del turno actual, incluyendo la LEF.
     Se llama al final de cada turno, despues de que el jugador (y la IA)
-    terminaron de dar sus ordenes."""
+    terminaron de dar sus ordenes.
+    orden_resolucion: lista de imperios en el orden en que se resuelven sus movimientos."""
 
     # 0. Eventos LEF diferidos: se ejecutan primero, antes de las fases normales.
     #    Combates y saqueos programados para este turno.
@@ -63,7 +64,7 @@ def cierre_de_turno(turno, imperios, mapa, diplomacia, lef):
     #    se resuelven las ordenes de movimiento/ataque encoladas durante el turno.
     if any(imperio.ordenes_movimiento for imperio in imperios):
         print(f"--- Movimiento y combate del turno {turno} ---")
-        resolver_ordenes_movimiento(mapa, diplomacia, imperios)
+        resolver_ordenes_movimiento(mapa, diplomacia, imperios, orden_resolucion)
         print("-------------------------------------------\n")
 
     # 2. Crecimiento de poblacion usa la felicidad del
