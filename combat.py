@@ -248,10 +248,7 @@ def mostrar_reporte_combate(reporte):
     """Imprime el detalle de rondas y el resultado de un combate ya resuelto."""
     print(f"  Combate en P{reporte['destino']:02d}: {reporte['atacantes_iniciales']} atacantes "
           f"vs {reporte['defensores_iniciales']} defensores")
-    for r in reporte["rondas"]:
-        print(f"    Ronda {r['ronda']}: X_A={r['x_a']:.2f} X_D={r['x_d']:.2f} | "
-              f"bajas ataque={r['bajas_atacante']:.1f} bajas def={r['bajas_defensor']:.1f} | "
-              f"A={r['a']:.1f} D={r['d']:.1f}")
+
     if reporte["resultado"] == "VICTORIA_ATACANTE":
         print(f"  -> VICTORIA DEL ATACANTE (E9): provincia conquistada, "
               f"sobreviven {reporte['atacantes_supervivientes']} atacantes")

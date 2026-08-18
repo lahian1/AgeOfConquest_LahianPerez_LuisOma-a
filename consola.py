@@ -10,6 +10,7 @@ from modelos import Imperio, Diplomacia, otro_imperio
 from mapa import (
     crear_mapa, asignar_provincias_iniciales, buscar_provincia,
     mostrar_mapa, mostrar_mapa_por_dueño, mostrar_estado_imperios,
+    _obtener_adyacentes,
 )
 from economia import calcular_actividad_comercial
 from poblacion import poblacion_total
@@ -181,6 +182,12 @@ def elegir_provincia_mapa(mapa, titulo):
     idx = elegir([formato_prov(p) for p in provs], titulo)
     return provs[idx] if idx >= 0 else None
 
+def elegir_provincia_mapa_adyacente(mapa, titulo, adyacentes):
+    """Lista todas las provincias adyacentes a una dada para seleccionar con flechas.
+    Retorna la provincia elegida o None si ESC."""
+    provs = [p for fila in mapa for p in fila if (p.posicion in adyacentes)]   
+    idx = elegir([formato_prov(p) for p in provs], titulo)
+    return provs[idx] if idx >= 0 else None
 
 
 #  ACCIONES DEL JUEGO 
@@ -227,7 +234,11 @@ def accion_mover(mapa, diplomacia, imperio_jugador):
         mapa, imperio_jugador, "MOVER TROPAS - Provincia de origen")
     if origen is None:
         return
-    destino = elegir_provincia_mapa(mapa, "MOVER TROPAS - Provincia de destino")
+    adyacentes = _obtener_adyacentes(mapa, *origen.posicion)
+    if not adyacentes:
+        mostrar_mensaje("No hay provincias adyacentes para mover tropas", "error")
+        return
+    destino = elegir_provincia_mapa_adyacente(mapa, "MOVER TROPAS - Provincia de destino", adyacentes)
     if destino is None:
         return
     cant = leer_numero(
@@ -530,6 +541,8 @@ def main():
                     mostrar_mapa_por_dueño(mapa)
                     input("  Presione ENTER para finalizar...")
                     partida_terminada = True
+
+                input("  Presione ENTER para continuar...")
                 turno += 1
             case 14:
                 accion_tropas_debug(mapa, imperios)
