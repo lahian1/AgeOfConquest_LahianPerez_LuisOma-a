@@ -601,8 +601,8 @@ def main():
             break
 
         cierre_de_turno(turno, imperios, mapa, diplomacia, lef, orden_turno)
+        input("  Presione ENTER para continuar...")
         turno += 1
-
         if turno > limite_turnos:
             vivos = [i for i in imperios if not i.rey_capturado and len(i.provincias) > 0]
             ganador = max(vivos, key=lambda i: len(i.provincias)) if vivos else None
