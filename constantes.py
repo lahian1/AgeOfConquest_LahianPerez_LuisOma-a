@@ -26,6 +26,13 @@ DECRETO_D_BONO_CRECIMIENTO = 0.01     # bono extra de crecimiento poblacional de
 TASA_CRECIMIENTO_POBLACION = 0.01     # tasa base de crecimiento poblacional por turno (calibracion)
 PORCENTAJE_PERDIDA_POBLACION_REBELION = 0.10  # la rebelion reduce la poblacion de la provincia en este porcentaje (modelado)
 
+# costos de decretos
+C_ORO_FERTILIDAD = 37.0       # costo en oro del decreto de fertilidad
+C_PA_FERTILIDAD = 0.5         # costo en PA del decreto de fertilidad
+COOLDOWN_FERTILIDAD = 5       # turnos de cooldown antes de volver a usar fertilidad
+C_ORO_REPARTIR = 22.0         # costo en oro del decreto de repartir dinero
+C_PA_REPARTIR = 0.1           # costo en PA del decreto de repartir dinero
+
 # constantes del subsistema Unidades
 C_ORO_TROPA = 1.0        # C_oro_tropa: costo en oro por soldado reclutado
 C_POB_TROPA = 100        # C_pob_tropa: habitantes necesarios por soldado reclutado
