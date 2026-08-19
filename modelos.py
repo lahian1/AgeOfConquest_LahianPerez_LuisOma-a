@@ -5,7 +5,7 @@
 # CLASE IMPERIO
 
 class Imperio:
-    def __init__(self, nombre, tesoro_inicial=1000.0):
+    def __init__(self, nombre, tesoro_inicial=100.0):
         self.nombre = nombre                # Variable auxiliar: identificador para UI y diplomacia
         self.tesoro = tesoro_inicial         # Variable de estado: reserva monetaria (oro)
 
@@ -13,7 +13,7 @@ class Imperio:
         self.tributos_pagados = 0.0          # Flujo (F): tributos salientes por proteccion otorgada (Parte 5)
 
 
-        self.puntos_accion_max = 5.0         # Parametro (P): capacidad fija de PA por turno
+        self.puntos_accion_max = 3.2         # Parametro (P): capacidad maxima de PA (calculada por provincia)
         self.puntos_accion_actual = self.puntos_accion_max  # Estado (E): PA disponibles este turno
 
         self.provincias = []                 # Lista de objetos Provincia que pertenecen a este imperio
@@ -33,10 +33,21 @@ class Imperio:
         provincia.dueño = self
         self.provincias.append(provincia)
 
-    def resetear_puntos_accion(self):
-        """Repone los puntos de accion disponibles al maximo del parametro. Se llamara
-        en el cierre de cada turno (Parte 2 en adelante)."""
-        self.puntos_accion_actual = self.puntos_accion_max
+    def recalcular_pa_maximo(self):
+        """Recalcula el PA maximo segun la cantidad de provincias (formula lineal).
+        PA_max = PA_BASE + (provincias * PA_COEF_PROVINCIAS)"""
+        from constantes import PA_BASE, PA_COEF_PROVINCIAS
+        self.puntos_accion_max = PA_BASE + len(self.provincias) * PA_COEF_PROVINCIAS
+
+    def recuperar_puntos_accion(self, en_guerra):
+        """Recupera PA al inicio de turno. Si esta en guerra, no recupera.
+        Si esta en paz, recupera PA_RECUPERACION hasta el maximo."""
+        from constantes import PA_RECUPERACION
+        if not en_guerra:
+            self.puntos_accion_actual = min(
+                self.puntos_accion_max,
+                self.puntos_accion_actual + PA_RECUPERACION
+            )
 
     def __repr__(self):
         return (f"Imperio({self.nombre}, tesoro={self.tesoro:.1f}, "
@@ -58,12 +69,12 @@ class Provincia:
 
         self.dueño = None                    # Referencia al Imperio propietario
 
-        self.poblacion = 1000                # Variable de estado (personas). Tope: P_MAX_POBLACION (Seccion 4.3)
+        self.poblacion = 250000                # Variable de estado (personas). Tope: P_MAX_POBLACION (Seccion 4.3)
         self.felicidad = 80.0                # Variable de estado, porcentaje 0-100
         self.fortificacion = False           # Variable de estado, booleana (efectividad 100%, ver Ecuacion 2.2)
         self.tep = 0                         # Tiempo en Propiedad: turnos consecutivos bajo el mismo duenio
         self.torre_vigilancia = False        # Variable de estado, booleana
-        self.u_prov = 0                      # Cantidad de soldados estacionados en esta provincia
+        self.u_prov = 100                      # Cantidad de soldados estacionados en esta provincia
 
         self.ac = 0.0                        # actividad_comercial: variable de flujo (Ecuacion 1.3)
         self.imp_prov = 0.0                  # impuestos generados por esta provincia en el turno actual

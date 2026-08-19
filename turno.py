@@ -12,6 +12,7 @@ from poblacion import (
 )
 from combat import resolver_ordenes_movimiento
 from constantes import SAQUEO_BOTIN, SAQUEO_PENALIDAD_FELICIDAD, DURACION_SAQUEO
+from modelos import Diplomacia
 
 
 def ejecutar_eventos_lef(lef, turno, imperios, mapa):
@@ -100,7 +101,12 @@ def cierre_de_turno(turno, imperios, mapa, diplomacia, lef, orden_resolucion=Non
         mostrar_resumen_felicidad(imperio, resumenes)
     print("-------------------------------------------\n")
 
-    # Avanzar turno: reponer PA de todos los imperios
+    # Avanzar turno: recalcular PA maximo y recuperar PA de todos los imperios
     for imperio in imperios:
-        imperio.resetear_puntos_accion()
+        en_guerra = any(
+            diplomacia.estado(imperio, otro) == Diplomacia.GUERRA
+            for otro in imperios if otro is not imperio
+        )
+        imperio.recalcular_pa_maximo()
+        imperio.recuperar_puntos_accion(en_guerra)
     print("Avanzando al siguiente turno...")

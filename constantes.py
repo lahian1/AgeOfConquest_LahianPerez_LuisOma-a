@@ -9,7 +9,7 @@ COEF_ADMINISTRATIVO = 0.591   # 59.1% de los impuestos totales recibidos
 # Actividad Comercial. AC_base se calcula como poblacion * coeficiente base,
 # modulado por multiplicadores categoricos de suelo/terreno/clima (por ahora solo "Tierra",
 # "Plano" y "Templado" existen en el mapa, se deja el diccionario listo para mas categorias).
-AC_BASE_COEF = 0.05
+AC_BASE_COEF = 0.004
 FACTOR_SUELO = {"Tierra": 1.0}
 FACTOR_TERRENO = {"Plano": 1.0}
 FACTOR_CLIMA = {"Templado": 1.0}
@@ -22,7 +22,7 @@ PENALIDAD_IMPUESTOS_FELICIDAD = 0.1   # cada punto % de tasa combinada resta est
 SAQUEO_PENALIDAD_FELICIDAD = 30.0     # reduccion de felicidad al saquear una provincia
 DECRETO_F_BONO_FELICIDAD = 15.0       # Delta_decretos: bono de felicidad del decreto de fertilidad (Decreto_f)
 DECRETO_D_BONO_CRECIMIENTO = 0.01     # bono extra de crecimiento poblacional del decreto de reparticion de oro (Decreto_d)
-TASA_CRECIMIENTO_POBLACION = 0.01     # tasa base de crecimiento poblacional por turno (calibracion)
+TASA_CRECIMIENTO_POBLACION = 0.00277     # tasa base de crecimiento poblacional por turno (calibracion)
 PORCENTAJE_PERDIDA_POBLACION_REBELION = 0.10  # la rebelion reduce la poblacion de la provincia en este porcentaje (modelado)
 
 # costos de decretos
@@ -52,7 +52,7 @@ PHI_FORT = 0.5            # phi_fort: reduccion de bajas del defensor si esta fo
 X_MIN = 0.85              # niebla de guerra: X ~ U(X_MIN, X_MAX) (Seccion 2.3)
 X_MAX = 1.15
 MAX_RONDAS_COMBATE = 20   # tope de rondas de la Ley Cuadratica antes de declarar la batalla sin resolucion
-C_PA_MOVIMIENTO = 0.5     # PA consumidos por cada orden de movimiento o ataque
+C_PA_MOVIMIENTO = 1.0     # PA consumidos por cada orden de movimiento o ataque
 C_ORO_FORT = 100.0        # costo en oro de fortificar una provincia (Seccion 2.2)
 C_PA_FORT = 0.5           # costo en PA de fortificar una provincia
 SAQUEO_BOTIN = 0.5        # % de la actividad comercial obtenido como botin al saquear (Evento E10)
@@ -60,6 +60,12 @@ DURACION_SAQUEO = 4        # turnos de inactividad de la provincia tras un saque
 C_PA_SAQUEO = 1.0          # PA consumidos por ordenar un saqueo
 FACTOR_TERRENO_ATAQUE = {"Plano": 1.0}    # theta_terreno,atacante: multiplicador por terreno del atacante (2.1)
 FACTOR_TERRENO_DEFENSA = {"Plano": 1.0}   # theta_terreno,defensor: multiplicador por terreno del defensor (2.1)
+
+# constantes del subsistema Puntos de Accion (dinamicos)
+PA_BASE = 2.75                    # intercepto de la formula de PA maximo
+PA_COEF_PROVINCIAS = 0.45         # pendiente: PA extra por provincia
+PA_RECUPERACION = 0.2             # PA que se recuperan por turno en paz
+PA_PENALIDAD_ATAQUE = 0.5         # PA que se pierden por provincia atacada
 
 # constantes del subsistema LEF (Parte 7) - prioridad logica de ejecucion dentro del mismo turno
 PRIORIDAD_COMBATE = 1      # se ejecuta primero: resolver combates pendientes

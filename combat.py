@@ -4,7 +4,7 @@ from constantes import (
     PHI_FORT, X_MIN, X_MAX, MAX_RONDAS_COMBATE,
     C_PA_MOVIMIENTO, C_ORO_FORT, C_PA_FORT, SAQUEO_BOTIN,
     SAQUEO_PENALIDAD_FELICIDAD, DURACION_SAQUEO, C_PA_SAQUEO,
-    FACTOR_TERRENO_ATAQUE, FACTOR_TERRENO_DEFENSA,
+    FACTOR_TERRENO_ATAQUE, FACTOR_TERRENO_DEFENSA, PA_PENALIDAD_ATAQUE,
 )
 
 
@@ -130,6 +130,12 @@ def atacar(mapa, imperio_atacante, imperio_defensor, origen, destino, cantidad):
     reporte["destino"] = destino.id
     reporte["atacantes_iniciales"] = cantidad
     reporte["defensores_iniciales"] = defensores
+
+    # Penalizar PA del defensor: -0.5 por provincia atacada
+    imperio_defensor.puntos_accion_actual = max(
+        0.0, imperio_defensor.puntos_accion_actual - PA_PENALIDAD_ATAQUE
+    )
+
     return reporte
 
 

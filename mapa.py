@@ -95,6 +95,8 @@ def asignar_provincias_iniciales(mapa, imperios):
     Las casillas colindantes a una provincia ya elegida quedan inhabilitadas
     para los siguientes imperios. Se repite hasta que cada imperio tenga su
     provincia y su rey ubicado.
+    Las provincias del rey obtienen poblacion=250000 y tropas=100.
+    Las demas provincias vacias obtienen poblacion aleatoria entre 50000 y 250000.
     """
     filas = len(mapa)
     columnas = len(mapa[0])
@@ -119,3 +121,15 @@ def asignar_provincias_iniciales(mapa, imperios):
             idx = af * columnas + ac
             if idx in disponibles:
                 inhabilitadas.add(idx)
+
+    # Asignar poblacion aleatoria a provincias vacias y stats iniciales al rey
+    for fila in mapa:
+        for provincia in fila:
+            if provincia.dueño is not None:
+                # Provincia del rey: poblacion y tropas fijas
+                provincia.poblacion = 250000
+                provincia.u_prov = 100
+            else:
+                # Provincia vacia: poblacion aleatoria
+                provincia.poblacion = random.randint(50000, 250000)
+                provincia.u_prov = 0

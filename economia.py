@@ -84,17 +84,17 @@ def procesar_cierre_economico(imperio, turno):
     for provincia in imperio.provincias:
         calcular_actividad_comercial(provincia)
 
-    # 2. Recaudacion (terminos positivos de la Ecuacion 1.1)
-    impuestos_directos_anual = 0.0
-    if mes == 1:
-        impuestos_directos_anual = sum(
+    # 2. Recaudacion (terminos positivos de la Ecuacion 1.1) - redondeada (sin decimales)
+    impuestos_directos_anual = 0
+    if mes == 1 and turno > 1:
+        impuestos_directos_anual = round(sum(
             (imperio.tasa_impuesto / 100) * p.poblacion
             for p in imperio.provincias if p.turnos_saqueado == 0
-        )
-    impuestos_comercio = sum(
+        ))
+    impuestos_comercio = round(sum(
         (imperio.tasa_impuesto_comercio / 100) * p.ac
         for p in imperio.provincias if p.turnos_saqueado == 0
-    )
+    ))
     # Registrar el aporte individual de cada provincia (para inspeccion/depuracion)
     for provincia in imperio.provincias:
         if provincia.turnos_saqueado > 0:
@@ -104,27 +104,27 @@ def procesar_cierre_economico(imperio, turno):
             aporte_comercio = (imperio.tasa_impuesto_comercio / 100) * provincia.ac
             provincia.imp_prov = aporte_directo + aporte_comercio
 
-    trib_rec = imperio.tributos_recibidos   # Tributos diplomaticos entrantes (calculados por calcular_tributos, Parte 5)
-    trib_pag = imperio.tributos_pagados     # Tributos diplomaticos salientes (Parte 5)
+    trib_rec = round(imperio.tributos_recibidos)
+    trib_pag = round(imperio.tributos_pagados)
 
     ingreso_total = impuestos_directos_anual + impuestos_comercio + trib_rec - trib_pag
 
-    # 3. Gastos (terminos negativos de la Ecuacion 1.1)
-    gasto_mantenimiento = calcular_gasto_mantenimiento(imperio)          # Ecuacion 1.4 (GM)
-    intereses_deuda = 0.0
+    # 3. Gastos (terminos negativos de la Ecuacion 1.1) - redondeados
+    gasto_mantenimiento = round(calcular_gasto_mantenimiento(imperio))
+    intereses_deuda = 0
     if imperio.tesoro < 0:
-        intereses_deuda = imperio.tesoro * TASA_INTERES_DEUDA           # saldo negativo * 10%
-    costo_gobierno = calcular_costo_gobierno(imperio)                     # Ecuacion 1.5
-    costo_administrativo = COEF_ADMINISTRATIVO * (impuestos_directos_anual + impuestos_comercio)
+        intereses_deuda = round(imperio.tesoro * TASA_INTERES_DEUDA)
+    costo_gobierno = calcular_costo_gobierno(imperio)
+    costo_administrativo = round(COEF_ADMINISTRATIVO * (impuestos_directos_anual + impuestos_comercio))
 
     gasto_total = gasto_mantenimiento + costo_gobierno + costo_administrativo
 
-    # 4. Actualizacion de tesoreria (Ecuacion 1.1 completa)
-    imperio.tesoro = imperio.tesoro + ingreso_total - gasto_total
+    # 4. Actualizacion de tesoreria (Ecuacion 1.1 completa) - sin decimales
+    imperio.tesoro = round(imperio.tesoro + ingreso_total - gasto_total)
 
     # 5. Si el tesoro queda negativo, cobrar interes del 10%
     if imperio.tesoro < 0:
-        imperio.tesoro += imperio.tesoro * TASA_INTERES_DEUDA
+        imperio.tesoro = round(imperio.tesoro + imperio.tesoro * TASA_INTERES_DEUDA)
 
     return {
         "mes": mes,

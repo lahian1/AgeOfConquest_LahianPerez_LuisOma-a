@@ -527,10 +527,10 @@ def main():
     columnas = 8
     mapa = crear_mapa(filas, columnas)
 
-    imperio_jugador = Imperio("Jugador", tesoro_inicial=1000.0)
-    imperio_norte   = Imperio("Norte",   tesoro_inicial=1000.0)
-    imperio_sur     = Imperio("Sur",     tesoro_inicial=1000.0)
-    imperio_este    = Imperio("Este",    tesoro_inicial=1000.0)
+    imperio_jugador = Imperio("Jugador", tesoro_inicial=100.0)
+    imperio_norte   = Imperio("Norte",   tesoro_inicial=100.0)
+    imperio_sur     = Imperio("Sur",     tesoro_inicial=100.0)
+    imperio_este    = Imperio("Este",    tesoro_inicial=100.0)
     imperios = [imperio_jugador, imperio_norte, imperio_sur, imperio_este]
 
     diplomacia = Diplomacia()
