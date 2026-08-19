@@ -9,7 +9,7 @@ COEF_ADMINISTRATIVO = 0.591   # 59.1% de los impuestos totales recibidos
 # Actividad Comercial. AC_base se calcula como poblacion * coeficiente base,
 # modulado por multiplicadores categoricos de suelo/terreno/clima (por ahora solo "Tierra",
 # "Plano" y "Templado" existen en el mapa, se deja el diccionario listo para mas categorias).
-AC_BASE_COEF = 0.004
+AC_BASE_COEF = 0.002
 FACTOR_SUELO = {"Tierra": 1.0}
 FACTOR_TERRENO = {"Plano": 1.0}
 FACTOR_CLIMA = {"Templado": 1.0}

@@ -21,8 +21,8 @@ class Imperio:
         self.ordenes_movimiento = []         # Lista_Movimientos(t): ordenes encoladas durante el turno, se resuelven al cierre (Parte 6)
 
         # tasas fijadas por decreto del imperio Ecuacion 1.1
-        self.tasa_impuesto = 10.0            # % (tau_imp), aplicado una vez al ano
-        self.tasa_impuesto_comercio = 5.0    # % (tau_com), aplicado cada turno
+        self.tasa_impuesto = 5.0            # % (tau_imp), aplicado una vez al ano
+        self.tasa_impuesto_comercio = 10.0    # % (tau_com), aplicado cada turno
 
 
         self.ubicacion_rey = None            # Referencia a la Provincia donde reside el rey
