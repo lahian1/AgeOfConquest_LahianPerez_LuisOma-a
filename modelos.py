@@ -8,7 +8,6 @@ class Imperio:
     def __init__(self, nombre, tesoro_inicial=1000.0):
         self.nombre = nombre                # Variable auxiliar: identificador para UI y diplomacia
         self.tesoro = tesoro_inicial         # Variable de estado: reserva monetaria (oro)
-        self.deuda = 0.0                     # Variable de estado: monto adeudado acumulado
 
         self.tributos_recibidos = 0.0        # Flujo (F): tributos entrantes por vasallaje recibido (Parte 5)
         self.tributos_pagados = 0.0          # Flujo (F): tributos salientes por proteccion otorgada (Parte 5)

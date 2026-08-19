@@ -3,8 +3,7 @@
 P_MAX_POBLACION = 1_000_000   # P_max: poblacion maxima que puede tener una provincia
 
 # constantes del subsistema Economia
-TASA_INTERES_DEUDA = 0.05     # tau_interes: %/turno sobre la deuda acumulada (parametro de calibracion)
-FACTOR_PRESTAMO = 1.10        # recargo del 10% aplicado a la deuda cuando se emite un prestamo (Seccion 4.4)
+TASA_INTERES_DEUDA = 0.10     # tau_interes: %/turno sobre el saldo negativo del tesoro (Seccion 4.4)
 COEF_ADMINISTRATIVO = 0.591   # 59.1% de los impuestos totales recibidos
 
 # Actividad Comercial. AC_base se calcula como poblacion * coeficiente base,

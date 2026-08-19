@@ -1,5 +1,5 @@
 from constantes import (
-    TASA_INTERES_DEUDA, FACTOR_PRESTAMO, COEF_ADMINISTRATIVO,
+    TASA_INTERES_DEUDA, COEF_ADMINISTRATIVO,
     AC_BASE_COEF, FACTOR_SUELO, FACTOR_TERRENO, FACTOR_CLIMA,
     TASA_TRIBUTO, MANT_UNITARIO,
 )
@@ -111,21 +111,20 @@ def procesar_cierre_economico(imperio, turno):
 
     # 3. Gastos (terminos negativos de la Ecuacion 1.1)
     gasto_mantenimiento = calcular_gasto_mantenimiento(imperio)          # Ecuacion 1.4 (GM)
-    intereses_deuda = imperio.deuda * TASA_INTERES_DEUDA                  # Deuda(t) * tau_interes
+    intereses_deuda = 0.0
+    if imperio.tesoro < 0:
+        intereses_deuda = imperio.tesoro * TASA_INTERES_DEUDA           # saldo negativo * 10%
     costo_gobierno = calcular_costo_gobierno(imperio)                     # Ecuacion 1.5
     costo_administrativo = COEF_ADMINISTRATIVO * (impuestos_directos_anual + impuestos_comercio)
 
-    gasto_total = gasto_mantenimiento + intereses_deuda + costo_gobierno + costo_administrativo
+    gasto_total = gasto_mantenimiento + costo_gobierno + costo_administrativo
 
     # 4. Actualizacion de tesoreria (Ecuacion 1.1 completa)
     imperio.tesoro = imperio.tesoro + ingreso_total - gasto_total
 
-    # 5. Condicion de prestamo automatico por deuda (Seccion 4.4)
-    prestamo_emitido = 0.0
+    # 5. Si el tesoro queda negativo, cobrar interes del 10%
     if imperio.tesoro < 0:
-        prestamo_emitido = abs(imperio.tesoro)
-        imperio.tesoro = 0.0
-        imperio.deuda = (imperio.deuda + prestamo_emitido) * FACTOR_PRESTAMO
+        imperio.tesoro += imperio.tesoro * TASA_INTERES_DEUDA
 
     return {
         "mes": mes,
@@ -139,7 +138,6 @@ def procesar_cierre_economico(imperio, turno):
         "costo_gobierno": costo_gobierno,
         "costo_administrativo": costo_administrativo,
         "gasto_total": gasto_total,
-        "prestamo_emitido": prestamo_emitido,
     }
 
 
@@ -156,7 +154,7 @@ def mostrar_resumen_economico(imperio, resumen):
           f"interes={resumen['intereses_deuda']:.2f}, "
           f"gobierno={resumen['costo_gobierno']:.2f}, "
           f"administrativo={resumen['costo_administrativo']:.2f})")
-    if resumen["prestamo_emitido"] > 0:
-        print(f"    [!] Tesoro negativo: prestamo automatico emitido por "
-              f"{resumen['prestamo_emitido']:.2f} oro (Seccion 4.4)")
-    print(f"    -> Tesoro resultante: {imperio.tesoro:.2f} | Deuda: {imperio.deuda:.2f}")
+    if imperio.tesoro < 0:
+        print(f"    [!] Tesoro en deuda: {imperio.tesoro:.2f} oro "
+              f"(interes del 10% por turno)")
+    print(f"    -> Tesoro resultante: {imperio.tesoro:.2f}")
