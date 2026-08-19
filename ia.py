@@ -276,13 +276,19 @@ class IA_CPU:
                     return self._registrar(f"Torre en P{args[0].id:02d}")
 
             case "guerra":
+                if imperio.puntos_accion_actual < 1.0:
+                    return False
                 res = self._dipl.declarar_guerra(imperio, args[0])
                 if res["ok"]:
+                    imperio.puntos_accion_actual -= 1.0
                     return self._registrar(f"Guerra a {args[0].nombre}")
 
             case "paz":
+                if imperio.puntos_accion_actual < 1.0:
+                    return False
                 res = self._dipl.proponer_paz(imperio, args[0])
                 if res["ok"]:
+                    imperio.puntos_accion_actual -= 1.0
                     return self._registrar(f"Paz con {args[0].nombre}")
 
             case "vasallaje":
