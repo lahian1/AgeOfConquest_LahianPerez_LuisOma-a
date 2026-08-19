@@ -16,7 +16,7 @@ from economia import calcular_actividad_comercial
 from poblacion import poblacion_total
 from unidades import reclutar_soldados, construir_torre_vigilancia, recalcular_unidades_totales
 from diplomacia import mostrar_relaciones
-from constantes import C_PA_SAQUEO, DURACION_SAQUEO
+from constantes import C_PA_SAQUEO, DURACION_SAQUEO, C_ORO_FERTILIDAD, C_PA_FERTILIDAD, COOLDOWN_FERTILIDAD, C_ORO_REPARTIR, C_PA_REPARTIR
 from combat import ordenar_movimiento, fortificar_provincia, saquear, C_PA_MOVIMIENTO
 from lef import LEF
 from turno import cierre_de_turno
@@ -304,6 +304,55 @@ def accion_saquear(mapa, imperio_jugador, lef, turno):
         mostrar_mensaje(f"No se puede saquear: {res['motivo']}", "error")
 
 
+def accion_fertilidad(mapa, imperio_jugador):
+    prov = elegir_provincia_jugador(
+        mapa, imperio_jugador, "DECRETO FERTILIDAD - Seleccionar provincia")
+    if prov is None:
+        return
+    if prov.cooldown_fertilidad > 0:
+        mostrar_mensaje(
+            f"P{prov.id:02d} en cooldown de fertilidad ({prov.cooldown_fertilidad} turnos restantes)",
+            "error")
+        return
+    if imperio_jugador.tesoro < C_ORO_FERTILIDAD:
+        mostrar_mensaje(f"Oro insuficiente (necesitas {C_ORO_FERTILIDAD:.0f})", "error")
+        return
+    if imperio_jugador.puntos_accion_actual < C_PA_FERTILIDAD:
+        mostrar_mensaje(f"PA insuficiente (necesitas {C_PA_FERTILIDAD:.1f})", "error")
+        return
+    imperio_jugador.tesoro -= C_ORO_FERTILIDAD
+    imperio_jugador.puntos_accion_actual -= C_PA_FERTILIDAD
+    prov.decreto_f = True
+    prov.cooldown_fertilidad = COOLDOWN_FERTILIDAD
+    mostrar_mensaje(
+        f"Decreto FERTILIDAD activado en P{prov.id:02d}\n"
+        f"  -{C_ORO_FERTILIDAD:.0f} oro, -{C_PA_FERTILIDAD:.1f} PA\n"
+        f"  +{15:.0f} felicidad este turno\n"
+        f"  cooldown {COOLDOWN_FERTILIDAD} turnos",
+        "exito")
+
+
+def accion_repartir(mapa, imperio_jugador):
+    prov = elegir_provincia_jugador(
+        mapa, imperio_jugador, "DECRETO REPARTIR ORO - Seleccionar provincia")
+    if prov is None:
+        return
+    if imperio_jugador.tesoro < C_ORO_REPARTIR:
+        mostrar_mensaje(f"Oro insuficiente (necesitas {C_ORO_REPARTIR:.0f})", "error")
+        return
+    if imperio_jugador.puntos_accion_actual < C_PA_REPARTIR:
+        mostrar_mensaje(f"PA insuficiente (necesitas {C_PA_REPARTIR:.1f})", "error")
+        return
+    imperio_jugador.tesoro -= C_ORO_REPARTIR
+    imperio_jugador.puntos_accion_actual -= C_PA_REPARTIR
+    prov.decreto_d = True
+    mostrar_mensaje(
+        f"Decreto REPARTIR ORO activado en P{prov.id:02d}\n"
+        f"  -{C_ORO_REPARTIR:.0f} oro, -{C_PA_REPARTIR:.1f} PA\n"
+        f"  +1% crecimiento poblacional este turno",
+        "exito")
+
+
 def accion_guerra(imperios, imperio_jugador, diplomacia):
     rival = elegir_rival(imperios, imperio_jugador, "Elegir imperio para DECLARAR GUERRA")
     if rival is None:
@@ -495,112 +544,130 @@ def main():
             input("  Presione ENTER para finalizar...")
             break
 
-        orden_turno = vivos[:]
-        random.shuffle(orden_turno)
+        turno_humano = True
+        while turno_humano:
+            pendientes = len(imperio_jugador.ordenes_movimiento)
+            subtitulo = (
+                f"Turno {turno}/{limite_turnos}  |  "
+                f"Oro: {imperio_jugador.tesoro:.1f}  |  "
+                f"PA: {imperio_jugador.puntos_accion_actual}/{imperio_jugador.puntos_accion_max}"
+                f"  |  Mov pend: {pendientes}"
+            )
 
-        for imperio_actual in orden_turno:
-            if imperio_actual.rey_capturado or len(imperio_actual.provincias) == 0:
+            opciones = [
+                "Reclutar soldados",           # 0
+                "Construir torre",              # 1
+                "Mover tropas",                 # 2
+                "Fortificar provincia",         # 3
+                "Saquear provincia",            # 4
+                "Decreto: Fertilidad",          # 5
+                "Decreto: Repartir oro",        # 6
+                "Declarar guerra",              # 7
+                "Proponer paz",                 # 8
+                "Formar alianza",               # 9
+                "Romper alianza",              # 10
+                "Proteger (vasallaje)",         # 11
+                "Ver relaciones",               # 12
+                "Ver mapa",                     # 13
+                "Ver estado detallado",         # 14
+                "Terminar turno",               # 15
+                "[Dep] Fijar tropas",           # 16
+                "[Dep] Fijar felicidad",        # 17
+                "Salir",                        # 18
+            ]
+
+            idx = elegir(opciones, f"TURNO {turno} - {imperio_jugador.nombre}", subtitulo,
+                          mapa_lineas(mapa, imperio_jugador, imperios))
+
+            if idx == -1 or idx == 18:
+                conf = elegir(["Si, salir", "No, volver"],
+                              "Seguro que desea salir del juego?")
+                if conf == 0:
+                    partida_terminada = True
+                turno_humano = False
                 continue
 
-            if imperio_actual is imperio_jugador:
-                turno_humano = True
-                while turno_humano:
-                    pendientes = len(imperio_jugador.ordenes_movimiento)
-                    subtitulo = (
-                        f"Turno {turno}/{limite_turnos}  |  "
-                        f"Oro: {imperio_jugador.tesoro:.1f}  |  "
-                        f"PA: {imperio_jugador.puntos_accion_actual}/{imperio_jugador.puntos_accion_max}"
-                        f"  |  Mov pend: {pendientes}"
-                    )
-
-                    opciones = [
-                        "Reclutar soldados",           # 0
-                        "Construir torre",              # 1
-                        "Mover tropas",                 # 2
-                        "Fortificar provincia",         # 3
-                        "Saquear provincia",            # 4
-                        "Declarar guerra",              # 5
-                        "Proponer paz",                 # 6
-                        "Formar alianza",               # 7
-                        "Romper alianza",              # 8
-                        "Proteger (vasallaje)",         # 9
-                        "Ver relaciones",               # 10
-                        "Ver mapa",                     # 11
-                        "Ver estado detallado",         # 12
-                        "Terminar turno",               # 13
-                        "[Dep] Fijar tropas",           # 14
-                        "[Dep] Fijar felicidad",        # 15
-                        "Salir",                        # 16
-                    ]
-
-                    idx = elegir(opciones, f"TURNO {turno} - {imperio_jugador.nombre}", subtitulo,
-                                  mapa_lineas(mapa, imperio_jugador, imperios))
-
-                    if idx == -1 or idx == 16:
-                        conf = elegir(["Si, salir", "No, volver"],
-                                      "Seguro que desea salir del juego?")
-                        if conf == 0:
-                            partida_terminada = True
-                        turno_humano = False
-                        continue
-
-                    match idx:
-                        case 0:
-                            accion_reclutar(mapa, imperio_jugador)
-                        case 1:
-                            accion_torre(mapa, imperio_jugador)
-                        case 2:
-                            accion_mover(mapa, diplomacia, imperio_jugador)
-                        case 3:
-                            accion_fortificar(mapa, imperio_jugador)
-                        case 4:
-                            accion_saquear(mapa, imperio_jugador, lef, turno)
-                        case 5:
-                            accion_guerra(imperios, imperio_jugador, diplomacia)
-                        case 6:
-                            accion_paz(imperios, imperio_jugador, diplomacia)
-                        case 7:
-                            accion_alianza(imperios, imperio_jugador, diplomacia)
-                        case 8:
-                            accion_romper(imperios, imperio_jugador, diplomacia)
-                        case 9:
-                            accion_proteger(imperios, imperio_jugador, diplomacia)
-                        case 10:
-                            accion_relaciones(imperios, diplomacia)
-                        case 11:
-                            accion_ver_mapa(mapa)
-                        case 12:
-                            accion_estado(mapa)
-                        case 13:
-                            turno_humano = False
-                        case 14:
-                            accion_tropas_debug(mapa, imperios)
-                        case 15:
-                            accion_fel_debug(mapa)
-                        case _:
-                            pass
-
-                if partida_terminada:
-                    break
-            else:
-                ia = ias.get(id(imperio_actual))
-                if ia:
-                    ia.planificar_turno(imperio_actual, mapa, diplomacia, imperios)
-                    if ia.acciones:
-                        limpiar()
-                        borde = "=" * ANCHO
-                        print(f"\n  {borde}")
-                        print(f"  TURNO {turno} - IA: {imperio_actual.nombre}")
-                        print(f"  {borde}")
-                        for accion in ia.acciones:
-                            print(f"    - {accion}")
-                        print(f"  {borde}")
-                        input("  Presione ENTER para continuar...")
+            match idx:
+                case 0:
+                    accion_reclutar(mapa, imperio_jugador)
+                case 1:
+                    accion_torre(mapa, imperio_jugador)
+                case 2:
+                    accion_mover(mapa, diplomacia, imperio_jugador)
+                case 3:
+                    accion_fortificar(mapa, imperio_jugador)
+                case 4:
+                    accion_saquear(mapa, imperio_jugador, lef, turno)
+                case 5:
+                    accion_fertilidad(mapa, imperio_jugador)
+                case 6:
+                    accion_repartir(mapa, imperio_jugador)
+                case 7:
+                    accion_guerra(imperios, imperio_jugador, diplomacia)
+                case 8:
+                    accion_paz(imperios, imperio_jugador, diplomacia)
+                case 9:
+                    accion_alianza(imperios, imperio_jugador, diplomacia)
+                case 10:
+                    accion_romper(imperios, imperio_jugador, diplomacia)
+                case 11:
+                    accion_proteger(imperios, imperio_jugador, diplomacia)
+                case 12:
+                    accion_relaciones(imperios, diplomacia)
+                case 13:
+                    accion_ver_mapa(mapa)
+                case 14:
+                    accion_estado(mapa)
+                case 15:
+                    turno_humano = False
+                case 16:
+                    accion_tropas_debug(mapa, imperios)
+                case 17:
+                    accion_fel_debug(mapa)
+                case _:
+                    pass
 
         if partida_terminada:
             break
 
-        cierre_de_turno(turno, imperios, mapa, diplomacia, lef, orden_turno)
+        # 2. LUEGO todas las IAs planifican sus movimientos (sin mostrar aun)
+        for imperio_actual in imperios:
+            if imperio_actual is imperio_jugador:
+                continue
+            if imperio_actual.rey_capturado or len(imperio_actual.provincias) == 0:
+                continue
+            ia = ias.get(id(imperio_actual))
+            if ia:
+                ia.planificar_turno(imperio_actual, mapa, diplomacia, imperios)
+
+        # 3. DESPUES cierre (el jugador ve su informe primero)
+        orden_resolucion = [i for i in imperios if not i.rey_capturado and len(i.provincias) > 0]
+        random.shuffle(orden_resolucion)
+        cierre_de_turno(turno, imperios, mapa, diplomacia, lef, orden_resolucion)
+        input("  Presione ENTER para continuar...")
+
+        # 4. FINALMENTE mostrar que hicieron las IAs
+        for imperio_actual in imperios:
+            if imperio_actual is imperio_jugador:
+                continue
+            if imperio_actual.rey_capturado or len(imperio_actual.provincias) == 0:
+                continue
+            ia = ias.get(id(imperio_actual))
+            if ia and ia.acciones:
+                limpiar()
+                borde = "=" * ANCHO
+                print(f"\n  {borde}")
+                print(f"  TURNO {turno} - IA: {imperio_actual.nombre}")
+                print(f"  {borde}")
+                for accion in ia.acciones:
+                    print(f"    - {accion}")
+                print(f"  {borde}")
+                input("  Presione ENTER para continuar...")
+
+        # 3. DESPUES cierre con orden aleatorio de resolucion
+        orden_resolucion = [i for i in imperios if not i.rey_capturado and len(i.provincias) > 0]
+        random.shuffle(orden_resolucion)
+        cierre_de_turno(turno, imperios, mapa, diplomacia, lef, orden_resolucion)
         input("  Presione ENTER para continuar...")
         turno += 1
         if turno > limite_turnos:

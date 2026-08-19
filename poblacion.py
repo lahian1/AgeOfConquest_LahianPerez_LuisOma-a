@@ -97,7 +97,14 @@ def procesar_cierre_felicidad(imperio):
         if provincia.turnos_saqueado > 0:
             provincia.turnos_saqueado -= 1
 
+        if provincia.cooldown_fertilidad > 0:
+            provincia.cooldown_fertilidad -= 1
+
         actualizar_felicidad(provincia, imperio)
+
+        # Los decretos duran 1 turno: se resetean despues de aplicar sus efectos
+        provincia.decreto_f = False
+        provincia.decreto_d = False
 
         se_rebelo = evaluar_rebelion(provincia)
         if se_rebelo:

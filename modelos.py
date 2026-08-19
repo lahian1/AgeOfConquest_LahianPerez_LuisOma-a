@@ -71,6 +71,7 @@ class Provincia:
         self.turnos_saqueado = 0             # Variable de estado (E): turnos restantes de inactividad por saqueo (4.6)
         self.decreto_f = False               # Decreto_f: bono de felicidad (fertilidad)
         self.decreto_d = False               # Decreto_d: bono de poblacion (reparticion de oro)
+        self.cooldown_fertilidad = 0         # turnos restantes de cooldown antes de volver a usar fertilidad
         self.venta = False
         self.precio_venta = 0
         self.comprador_v = None
