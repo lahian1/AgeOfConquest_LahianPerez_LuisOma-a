@@ -132,9 +132,9 @@ def atacar(mapa, imperio_atacante, imperio_defensor, origen, destino, cantidad):
     reporte["defensores_iniciales"] = defensores
 
     # Penalizar PA del defensor: -0.5 por provincia atacada
-    imperio_defensor.puntos_accion_actual = max(
+    imperio_defensor.puntos_accion_actual = round(max(
         0.0, imperio_defensor.puntos_accion_actual - PA_PENALIDAD_ATAQUE
-    )
+    ), 1)
 
     return reporte
 

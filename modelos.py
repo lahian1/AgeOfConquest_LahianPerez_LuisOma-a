@@ -34,24 +34,30 @@ class Imperio:
         self.provincias.append(provincia)
 
     def recalcular_pa_maximo(self):
-        """Recalcula el PA maximo segun la cantidad de provincias (formula lineal).
-        PA_max = PA_BASE + (provincias * PA_COEF_PROVINCIAS)"""
-        from constantes import PA_BASE, PA_COEF_PROVINCIAS
-        self.puntos_accion_max = PA_BASE + len(self.provincias) * PA_COEF_PROVINCIAS
+        """Recalcula el PA maximo segun la cantidad de provincias (raiz cuadrada).
+        PA_max = PA_BASE + sqrt(n - 1), redondeado a 1 decimal."""
+        import math
+        from constantes import PA_BASE
+        n = len(self.provincias)
+        self.puntos_accion_max = round(PA_BASE + math.sqrt(max(0, n - 1)), 1)
 
     def recuperar_puntos_accion(self, en_guerra):
         """Recupera PA al inicio de turno. Si esta en guerra, no recupera.
-        Si esta en paz, recupera PA_RECUPERACION hasta el maximo."""
-        from constantes import PA_RECUPERACION
+        Si esta en paz, recupera PA_RECUPERACION hasta el maximo.
+        Piso: PA_MAX de (n-1) provincias (nunca baja del maximo anterior)."""
+        import math
+        from constantes import PA_RECUPERACION, PA_BASE
         if not en_guerra:
-            self.puntos_accion_actual = min(
-                self.puntos_accion_max,
-                self.puntos_accion_actual + PA_RECUPERACION
-            )
+            n = len(self.provincias)
+            pa_min = round(PA_BASE + math.sqrt(max(0, n - 2)), 1)
+            self.puntos_accion_actual = round(max(
+                pa_min,
+                min(self.puntos_accion_max, self.puntos_accion_actual + PA_RECUPERACION)
+            ), 1)
 
     def __repr__(self):
         return (f"Imperio({self.nombre}, tesoro={self.tesoro:.1f}, "
-                f"PA={self.puntos_accion_actual}/{self.puntos_accion_max}, "
+                f"PA={self.puntos_accion_actual:.1f}/{self.puntos_accion_max:.1f}, "
                 f"provincias={len(self.provincias)})")
 
 

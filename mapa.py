@@ -32,7 +32,7 @@ def mostrar_estado_imperios(imperios):
         ids_provincias = [p.id for p in imperio.provincias]
         rey = imperio.ubicacion_rey.id if imperio.ubicacion_rey else "sin asignar"
         print(f"{imperio.nombre}: tesoro={imperio.tesoro:.1f} oro | "
-              f"PA={imperio.puntos_accion_actual}/{imperio.puntos_accion_max} | "
+              f"PA={imperio.puntos_accion_actual:.1f}/{imperio.puntos_accion_max:.1f} | "
               f"rey_en_provincia={rey} | "
               f"provincias={ids_provincias}")
     print("---------------------------------------\n")

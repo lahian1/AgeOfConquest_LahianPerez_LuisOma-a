@@ -62,7 +62,7 @@ FACTOR_TERRENO_ATAQUE = {"Plano": 1.0}    # theta_terreno,atacante: multiplicado
 FACTOR_TERRENO_DEFENSA = {"Plano": 1.0}   # theta_terreno,defensor: multiplicador por terreno del defensor (2.1)
 
 # constantes del subsistema Puntos de Accion (dinamicos)
-PA_BASE = 2.75                    # intercepto de la formula de PA maximo
+PA_BASE = 3.2                    # intercepto: PA maximo con 1 provincia
 PA_COEF_PROVINCIAS = 0.45         # pendiente: PA extra por provincia
 PA_RECUPERACION = 0.2             # PA que se recuperan por turno en paz
 PA_PENALIDAD_ATAQUE = 0.5         # PA que se pierden por provincia atacada

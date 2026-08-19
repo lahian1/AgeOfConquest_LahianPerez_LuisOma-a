@@ -581,7 +581,7 @@ def main():
             subtitulo = (
                 f"Turno {turno}/{limite_turnos}  |  "
                 f"Oro: {imperio_jugador.tesoro:.1f}  |  "
-                f"PA: {imperio_jugador.puntos_accion_actual}/{imperio_jugador.puntos_accion_max}"
+                f"PA: {imperio_jugador.puntos_accion_actual:.1f}/{imperio_jugador.puntos_accion_max:.1f}"
                 f"  |  Mov pend: {pendientes}"
             )
 
