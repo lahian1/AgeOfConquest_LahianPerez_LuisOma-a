@@ -160,3 +160,24 @@ def mostrar_resumen_economico(imperio, resumen):
         print(f"    [!] Tesoro negativo: prestamo automatico emitido por "
               f"{resumen['prestamo_emitido']:.2f} oro (Seccion 4.4)")
     print(f"    -> Tesoro resultante: {imperio.tesoro:.2f} | Deuda: {imperio.deuda:.2f}")
+
+
+def modificar_impuestos_comercio(imperio, nueva_tasa):
+    """Permite al jugador modificar la tasa de impuesto sobre comercio de un imperio.
+    La nueva tasa debe estar entre 0 y 200 (porcentaje)."""
+    posibles_impuestos = [0, 5, 10, 15, 20]
+    if nueva_tasa in posibles_impuestos:
+        imperio.tasa_impuesto_comercio = nueva_tasa
+        print(f"[{imperio.nombre}] Tasa de impuesto sobre comercio modificada a {nueva_tasa:.1f}%")
+    else:
+        print(f"[{imperio.nombre}] Error: La tasa de impuesto sobre comercio debe estar entre 0 y 200%.")
+
+def modificar_impuestos_anuales(imperio, nueva_tasa):
+    """Permite al jugador modificar la tasa de impuesto directo de un imperio.
+    La nueva tasa debe estar entre 0 y 200 (porcentaje)."""
+    posibles_impuestos = [0, 5, 10, 15, 20]
+    if nueva_tasa in posibles_impuestos:
+        imperio.tasa_impuesto = nueva_tasa
+        print(f"[{imperio.nombre}] Tasa de impuesto directo modificada a {nueva_tasa:.1f}%")
+    else:
+        print(f"[{imperio.nombre}] Error: La tasa de impuesto directo debe estar entre 0 y 200%.")

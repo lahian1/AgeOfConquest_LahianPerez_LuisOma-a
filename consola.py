@@ -12,14 +12,14 @@ from mapa import (
     mostrar_mapa, mostrar_mapa_por_dueño, mostrar_estado_imperios,
     _obtener_adyacentes,
 )
-from economia import calcular_actividad_comercial
+from economia import calcular_actividad_comercial, modificar_impuestos_anuales, modificar_impuestos_comercio
 from poblacion import poblacion_total
 from unidades import reclutar_soldados, construir_torre_vigilancia, recalcular_unidades_totales
 from diplomacia import mostrar_relaciones
 from constantes import C_PA_SAQUEO, DURACION_SAQUEO
 from combat import ordenar_movimiento, fortificar_provincia, saquear, C_PA_MOVIMIENTO
 from lef import LEF
-from turno import cierre_de_turno
+from turno import cierre_de_turno, obtener_mes
 from ia import IA_CPU
 
 
@@ -436,6 +436,37 @@ def accion_fel_debug(mapa):
         f"Felicidad de P{prov.id:02d} forzada a {prov.felicidad:.1f}",
         "exito")
 
+def accion_modficar_impuesto(imperio_jugador, turno):
+    tazas=[0, 5, 10, 15, 20]
+    limpiar()
+    print()
+    print(f"  {'=' * ANCHO}")
+    print("  MODIFICAR TASAS DE IMPUESTO")
+    print(f"  {'=' * ANCHO}")
+    print(f"  Tasa de impuesto directo actual: {imperio_jugador.tasa_impuesto:.1f}%")
+    print(f"  Tasa de impuesto comercial actual: {imperio_jugador.tasa_impuesto_comercio:.1f}%")
+    impuesto_comercio= elegir(["Modificar impuesto directo", "Modificar impuesto comercial"], "Seleccione la tasa a modificar")
+    if (impuesto_comercio==0):
+        if obtener_mes(turno) != 12:
+            mostrar_mensaje("Solo se puede modificar la tasa de impuesto directo en el mes 12", "error")
+            return
+        nueva_taza = elegir(tazas, "Seleccione la nueva tasa de impuesto anual (solo se puede modificar en el mes 12)")
+        if nueva_taza == -1:
+            mostrar_mensaje("Opcion invalida", "error")
+            return
+        modificar_impuestos_anuales(imperio_jugador, tazas[nueva_taza])
+        mostrar_mensaje(f"Tasa de impuesto directo modificada a {imperio_jugador.tasa_impuesto:.1f}%", "exito")
+    elif impuesto_comercio == 1:
+        nueva_taza = elegir(tazas, "Seleccione la nueva tasa de impuesto comercial")
+        if nueva_taza == -1:
+            mostrar_mensaje("Opcion invalida", "error")
+            return
+        modificar_impuestos_comercio(imperio_jugador, tazas[nueva_taza])
+        mostrar_mensaje(f"Tasa de impuesto comercial modificada a {imperio_jugador.tasa_impuesto_comercio:.1f}%", "exito")
+    else:
+        mostrar_mensaje("Opcion invalida", "error")
+        return  
+
 
 
 def main():
@@ -530,13 +561,14 @@ def main():
                         "Terminar turno",               # 13
                         "[Dep] Fijar tropas",           # 14
                         "[Dep] Fijar felicidad",        # 15
-                        "Salir",                        # 16
+                        "Modificar impuesto",            # 16
+                        "Salir",                         # 17
                     ]
 
                     idx = elegir(opciones, f"TURNO {turno} - {imperio_jugador.nombre}", subtitulo,
                                   mapa_lineas(mapa, imperio_jugador, imperios))
 
-                    if idx == -1 or idx == 16:
+                    if idx == -1 or idx == 17:
                         conf = elegir(["Si, salir", "No, volver"],
                                       "Seguro que desea salir del juego?")
                         if conf == 0:
@@ -577,6 +609,8 @@ def main():
                             accion_tropas_debug(mapa, imperios)
                         case 15:
                             accion_fel_debug(mapa)
+                        case 16:
+                            accion_modficar_impuesto(imperio_jugador, turno)
                         case _:
                             pass
 
