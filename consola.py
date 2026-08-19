@@ -12,14 +12,14 @@ from mapa import (
     mostrar_mapa, mostrar_mapa_por_dueño, mostrar_estado_imperios,
     _obtener_adyacentes,
 )
-from economia import calcular_actividad_comercial, modificar_impuestos_anuales, modificar_impuestos_comercio
+from economia import calcular_actividad_comercial, modificar_impuestos_anuales, modificar_impuestos_comercio, obtener_mes
 from poblacion import poblacion_total
 from unidades import reclutar_soldados, construir_torre_vigilancia, recalcular_unidades_totales
 from diplomacia import mostrar_relaciones
 from constantes import C_PA_SAQUEO, DURACION_SAQUEO, C_ORO_FERTILIDAD, C_PA_FERTILIDAD, COOLDOWN_FERTILIDAD, C_ORO_REPARTIR, C_PA_REPARTIR
 from combat import ordenar_movimiento, fortificar_provincia, saquear, C_PA_MOVIMIENTO
 from lef import LEF
-from turno import cierre_de_turno, obtener_mes
+from turno import cierre_de_turno
 from ia import IA_CPU
 
 
@@ -604,13 +604,14 @@ def main():
                 "Terminar turno",               # 15
                 "[Dep] Fijar tropas",           # 16
                 "[Dep] Fijar felicidad",        # 17
-                "Salir",                        # 18
+                "Modificar impuesto",            # 18
+                "Salir",                         # 19
             ]
 
             idx = elegir(opciones, f"TURNO {turno} - {imperio_jugador.nombre}", subtitulo,
                           mapa_lineas(mapa, imperio_jugador, imperios))
 
-            if idx == -1 or idx == 18:
+            if idx == -1 or idx == 19:
                 conf = elegir(["Si, salir", "No, volver"],
                               "Seguro que desea salir del juego?")
                 if conf == 0:
@@ -655,6 +656,8 @@ def main():
                     accion_tropas_debug(mapa, imperios)
                 case 17:
                     accion_fel_debug(mapa)
+                case 18:
+                    accion_modficar_impuesto(imperio_jugador, turno)
                 case _:
                     pass
 
