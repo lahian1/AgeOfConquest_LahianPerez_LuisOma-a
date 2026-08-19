@@ -698,11 +698,6 @@ def main():
                 print(f"  {borde}")
                 input("  Presione ENTER para continuar...")
 
-        # 3. DESPUES cierre con orden aleatorio de resolucion
-        orden_resolucion = [i for i in imperios if not i.rey_capturado and len(i.provincias) > 0]
-        random.shuffle(orden_resolucion)
-        cierre_de_turno(turno, imperios, mapa, diplomacia, lef, orden_resolucion)
-        input("  Presione ENTER para continuar...")
         turno += 1
         if turno > limite_turnos:
             vivos = [i for i in imperios if not i.rey_capturado and len(i.provincias) > 0]
