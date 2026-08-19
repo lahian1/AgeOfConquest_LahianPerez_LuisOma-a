@@ -76,11 +76,13 @@ class IA_CPU:
         self.acciones = []
         self._comprometidas = {}
         self._expandidos = set()
+        self._origenes_usados = set()
 
     def planificar_turno(self, imperio, mapa, diplomacia, imperios):
         self.acciones.clear()
         self._comprometidas.clear()
         self._expandidos.clear()
+        self._origenes_usados.clear()
         self._mapa = mapa
         self._dipl = diplomacia
         rivales = _rivales(imperio, imperios)
@@ -141,6 +143,8 @@ class IA_CPU:
         for prop, enem in pares:
             if enem in self._expandidos:
                 continue
+            if prop in self._origenes_usados:
+                continue
             disp = self._disp(prop)
             if disp < 2:
                 continue
@@ -178,7 +182,10 @@ class IA_CPU:
         max_tropas = 0
         for p in imperio.provincias:
             disp = self._disp(p)
-            if disp > max_tropas and p is not mejor and mejor in _adyacentes(p, mapa):
+            if (disp > max_tropas
+                    and p is not mejor
+                    and p not in self._origenes_usados
+                    and mejor in _adyacentes(p, mapa)):
                 max_tropas = disp
                 origen = p
         if origen is None or max_tropas <= 0:
@@ -265,9 +272,12 @@ class IA_CPU:
                 o, d, c = args[0], args[1], args[2]
                 if c > self._disp(o):
                     return False
+                if o in self._origenes_usados:
+                    return False
                 res = ordenar_movimiento(self._mapa, self._dipl, imperio, o, d, c)
                 if res["ok"]:
                     self._comprometidas[o] = self._comprometidas.get(o, 0) + c
+                    self._origenes_usados.add(o)
                     return self._registrar(f"Mover {c} de P{o.id:02d} a P{d.id:02d}")
 
             case "torre":

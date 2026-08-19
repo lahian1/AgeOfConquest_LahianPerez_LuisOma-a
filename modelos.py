@@ -42,14 +42,15 @@ class Imperio:
         self.puntos_accion_max = round(PA_BASE + math.sqrt(max(0, n - 1)), 1)
 
     def recuperar_puntos_accion(self, en_guerra):
-        """Recupera PA al inicio de turno. Si esta en guerra, no recupera.
-        Si esta en paz, recupera PA_RECUPERACION hasta el maximo.
-        Piso: PA_MAX de (n-1) provincias (nunca baja del maximo anterior)."""
+        """Recupera PA al inicio de turno. Si está en guerra, recupera al mínimo.
+        Si está en paz, recupera PA_RECUPERACION hasta el máximo."""
         import math
         from constantes import PA_RECUPERACION, PA_BASE
-        if not en_guerra:
-            n = len(self.provincias)
-            pa_min = round(PA_BASE + math.sqrt(max(0, n - 2)), 1)
+        n = len(self.provincias)
+        pa_min = round(PA_BASE + math.sqrt(max(0, n - 2)), 1)
+        if en_guerra:
+            self.puntos_accion_actual = round(max(pa_min, self.puntos_accion_actual), 1)
+        else:
             self.puntos_accion_actual = round(max(
                 pa_min,
                 min(self.puntos_accion_max, self.puntos_accion_actual + PA_RECUPERACION)
